@@ -40,8 +40,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [x64, arm64]
-    runs-on: macos-14
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     env:
       BUILD_ARCH: ${{ matrix.arch }}
@@ -60,6 +64,24 @@ jobs:
           test "$RELEASE_TAG" = "v$(node -p "require('./package.json').version")"
       - run: npm ci
       - run: npm run build
+      - name: Test native Opus to AAC conversion
+        if: matrix.arch == 'arm64'
+        run: |
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          import os from 'node:os';
+          import assert from 'node:assert/strict';
+          import {convertOpusFile} from './app/convert-audio.mjs';
+          const root=await fs.mkdtemp(path.join(os.tmpdir(),'pocket-native-aac-'));
+          try {
+            for (const name of ['tone-mono.opus','tone-stereo.opus']) {
+              const result=await convertOpusFile(path.resolve('test/fixtures',name),path.join(root,name+'.m4a'));
+              assert.ok(result.duration>2.2 && result.duration<2.6);
+            }
+            console.log('PASS: production streaming decoder and native macOS afconvert, mono/stereo AAC.');
+          } finally {await fs.rm(root,{recursive:true,force:true});}
+          JS
       - name: Test editor on macOS
         if: matrix.arch == 'arm64'
         run: node scripts/studio-desktop-check.mjs
