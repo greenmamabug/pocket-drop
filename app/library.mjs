@@ -10,6 +10,7 @@ import {transferResult} from './transfer-result.mjs';
 import {FileEstimate} from './progress-estimate.mjs';
 import {describeProblem} from './problems.mjs';
 import {revision} from './catalog.mjs';
+import {durationFromManifest} from './duration-index.mjs';
 import { Device } from './device.mjs';
 export function friendly(error){
   const msg=error?.message??String(error);
@@ -23,7 +24,7 @@ export class Library extends EventEmitter{
   publish(){this.emit('change',this.snapshot());}
   publishProgress(){const now=performance.now();if(now-(this.lastProgressPublish??-Infinity)<180)return;this.lastProgressPublish=now;this.publish();}
   async saveCache(){if(this.cacheFile){const temp=this.cacheFile+'.part';await fs.writeFile(temp,JSON.stringify([...this.cache]));await fs.rename(temp,this.cacheFile);}}
-  async restore(){if(this.cacheFile){try{const entries=JSON.parse(await fs.readFile(this.cacheFile,'utf8'));this.cache=new Map(entries.filter(e=>Array.isArray(e)&&typeof e[0]==='string'&&e[1]?.row&&typeof e[1].fp==='string'));}catch{}}this.rows=[...this.cache.entries()].filter(([source])=>path.dirname(source)===this.inbox).map(([,entry])=>{const row={...entry.row,onDevice:false,status:entry.row.status==='error'?'error':'disconnected'};return this.catalog?this.catalog.decorate(row):row;});if(this.rows.length)this.hasScanned=true;if(this.stateFile){try{this.logs=JSON.parse(await fs.readFile(this.stateFile,'utf8')).filter(entry=>!/^MYO Pocket ejected(?: \(\d+ storage volumes\))?\. Safe to unplug\.$/.test(entry.text??'')).slice(0,100);}catch{}}}
+  async restore(){if(this.cacheFile){try{const entries=JSON.parse(await fs.readFile(this.cacheFile,'utf8'));this.cache=new Map(entries.filter(e=>Array.isArray(e)&&typeof e[0]==='string'&&e[1]?.row&&typeof e[1].fp==='string'));}catch{}}this.rows=[...this.cache.entries()].filter(([source])=>path.dirname(source)===this.inbox).map(([,entry])=>{const row={...entry.row,durationMs:entry.row.durationMs??durationFromManifest(entry.manifest),onDevice:false,status:entry.row.status==='error'?'error':'disconnected'};return this.catalog?this.catalog.decorate(row):row;});if(this.rows.length)this.hasScanned=true;if(this.stateFile){try{this.logs=JSON.parse(await fs.readFile(this.stateFile,'utf8')).filter(entry=>!/^MYO Pocket ejected(?: \(\d+ storage volumes\))?\. Safe to unplug\.$/.test(entry.text??'')).slice(0,100);}catch{}}}
   async log(text,tone='info'){this.logs.unshift({id:randomUUID(),time:new Date().toISOString(),text:friendly(text),tone});this.logs=this.logs.slice(0,100);this.publish();if(this.stateFile)await fs.writeFile(this.stateFile,JSON.stringify(this.logs)).catch(()=>{});}
   scan(force=false){
     if(this.scanTask||this.busy)return this.scanTask??Promise.resolve();
@@ -64,7 +65,7 @@ export class Library extends EventEmitter{
           const cached=this.cache.get(source);
           if(!force&&cached?.fp===fp&&cached.deviceSig===deviceSig){found.push({...cached.row});continue;}
           const known=cached?.fp===fp?cached:null;let detailInfo=known?.info;
-          if(known)Object.assign(base,known.row);
+          if(known)Object.assign(base,known.row,{durationMs:known.row.durationMs??durationFromManifest(known.manifest)});
           else{
             if(!cached&&this.scanMessage!=='Importing new audio…'){this.scanMessage='Importing new audio…';this.publish();}
             const info=await inspect(source);detailInfo=info;if(this.stopRequested)return;

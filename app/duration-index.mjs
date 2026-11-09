@@ -3,6 +3,8 @@ import path from 'node:path';
 import {parseFile} from 'music-metadata';
 import {openArchive,fingerprint,inspect} from './archive.mjs';
 
+export function durationFromManifest(manifest){const tracks=manifest?.tracks;if(!Array.isArray(tracks)||!tracks.length||tracks.some(t=>!Number.isFinite(t.durationMs)||t.durationMs<0))return null;const total=tracks.reduce((n,t)=>n+t.durationMs,0);return total>0?total:null;}
+
 export function cachedDuration(row,item={}){
   const record=item.durations,keys=item.edits?.tracks.filter(t=>!t.excluded).map(t=>t.key);
   if(record?.fp===row.sourceFingerprint){

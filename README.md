@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.4.3](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.3/Pocket-Drop-4.4.3-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.3](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.3/Pocket-Drop-4.4.3-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.4.4](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.4/Pocket-Drop-4.4.4-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.4](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.4/Pocket-Drop-4.4.4-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.

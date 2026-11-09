@@ -37,16 +37,20 @@ export async function quickDocument(source,knownInfo){
     else{prefix='';metadata={tracks:info.format==='numbered'?info.numbered.tracks.map((t,index)=>({index,title:t.title,audio:t.key,icon:t.iconKey})):info.audioFiles.map((key,index)=>({index,title:path.posix.basename(key,path.posix.extname(key)),audio:key,icon:info.iconAssignments?.[key]}))};}
     const ordered=[...metadata.tracks].sort((a,b)=>a.index-b.index),audio=info.audioFiles.filter(n=>n.startsWith(prefix+'audio/')).sort(byAudioPath);
     const assigned=new Set(ordered.map(t=>t.icon?prefix+safeName(t.icon):null));
-    const icons=archive.entries.filter(e=>e.name!==info.coverName&&/\.png$/i.test(e.name)&&e.size<=10*1024**2&&(assigned.has(e.name)||e.size<=256*1024)).map(e=>e.name);
-    const numberedIcons=icons.filter(n=>n.startsWith(prefix+'icons/')).sort(byAudioPath);
+    const candidates=archive.entries.filter(e=>e.name!==info.coverName&&/\.png$/i.test(e.name)&&e.size<=10*1024**2&&(assigned.has(e.name)||e.size<=256*1024)).map(e=>e.name);
+    const numberedIcons=candidates.filter(n=>n.startsWith(prefix+'icons/')).sort(byAudioPath);
+    const preferred=new Set([...assigned,...(numberedIcons.length===ordered.length?numberedIcons:[])]);
+    const icons=[...candidates.filter(n=>preferred.has(n)),...candidates.filter(n=>!preferred.has(n))].slice(0,500);
     const tracks=ordered.map((t,i)=>({key:typeof t.audio==='string'?prefix+safeName(t.audio):audio[i],title:t.title,iconKey:typeof t.icon==='string'&&icons.includes(prefix+t.icon)?prefix+t.icon:metadata.format!=='myo-studio-archive'&&numberedIcons.length===ordered.length?numberedIcons[i]:null,excluded:false}));
     if(!tracks.length||tracks.length>500||new Set(tracks.map(t=>t.key)).size!==tracks.length||tracks.some(t=>!info.audioFiles.includes(t.key)))throw new Error('Cannot match every track to an audio file.');
     const root=isFolder?await fs.realpath(source):null,pending=new Map();let closed=false;
     const file=async name=>{
       if(closed||!names.includes(name))throw new Error('Audio details expired. Reopen the item.');
       if(isFolder)return path.join(root,name);
-      if(!pending.has(name))pending.set(name,(async()=>{if(await fingerprint(source)!==info.sourceFingerprint&&info.sourceFingerprint)throw new Error('The original archive changed. Reopen Audio details.');return archive.extract([name]);})());
-      const item=await pending.get(name);if(closed)throw new Error('Audio details expired.');return path.join(await fs.realpath(item.root),name);
+      // Solid 7z archives must not be decompressed once for every thumbnail.
+      const group=icons.includes(name)?'\0artwork':name,members=group==='\0artwork'?icons:[name];
+      if(!pending.has(group))pending.set(group,(async()=>{if(await fingerprint(source)!==info.sourceFingerprint&&info.sourceFingerprint)throw new Error('The original archive changed. Reopen Audio details.');return archive.extract(members);})());
+      const item=await pending.get(group);if(closed)throw new Error('Audio details expired.');return path.join(await fs.realpath(item.root),name);
     };
     return{info,root,tracks,icons,isFolder,file,cleanup:async()=>{closed=true;const items=await Promise.allSettled([...pending.values()]);for(const item of items)if(item.status==='fulfilled')await item.value.cleanup();archive.close();}};
   }catch(error){archive.close();throw error;}

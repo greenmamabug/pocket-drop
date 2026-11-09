@@ -1,3 +1,9 @@
+# 4.4.4
+
+- Batch archive track pictures into one extraction, avoiding repeated solid-7z decompression when details opens. Audio remains deferred until preview.
+- Limit the editor's icon picker to 500 pictures, preserving assigned icons first, to avoid excessive option lists.
+- Reuse measured durations in earlier versions' cached manifests so existing books do not need another audio read to show Length offline.
+
 # 4.4.3
 
 - Add a sortable Length column beside Size, using measured player/preparation durations and cached background discovery for unknown local audio.

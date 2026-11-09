@@ -120,3 +120,7 @@ Numbered-layout follow-up: the full suite passed 66 tests, including extracted f
 ## 4.4.3 book length and incomplete-player warning
 
 82 application tests pass, including measured folder/ZIP lengths, persistence, excluded-track totals, foreground pause behavior, source preservation, and resync of a missing manifest while preserving another book and listening position. Browser checks verify Length display/sorting, Save versus Save and close, persistent opening indicators, and no horizontal overflow at 960px with large text. The actual Electron editor/collection checks pass. Existing crash/large-copy/Ogg/eject regression tests remain passing. Diagnostics and transfer progress are retained; an apparent pause ending is not treated as proof of a completed transfer.
+
+## 4.4.4 archive picture performance and old duration-cache reuse
+
+84 application tests pass. Additional tests verify concurrent solid-7z picture requests share one extraction, audio is not extracted for those pictures, temporary pictures are removed on close, source bytes remain unchanged, and an old cached manifest supplies Length offline before and after refresh without audio probing. Native Electron editor and browser checks pass. Existing diagnostic logs, transfer stage progress, Save / Save and close and persistent opening indications are retained.
