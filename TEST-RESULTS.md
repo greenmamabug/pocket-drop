@@ -112,3 +112,7 @@ Numbered-layout follow-up: the full suite passed 66 tests, including extracted f
 ## 4.4.1 stability, Ogg and library performance
 
 75 application tests pass on Linux, including streaming Vorbis/Opus Ogg conversion to verified AAC, corrupt-file failure without device writes followed by successful retry, persisted duplicate checks, collection audio/picture sync, deferred single-track archive preview, artwork aliases/disc-local icons, refresh state completion/failure, and the destroyed-window quit regression. A 64 MiB copy test verifies event-loop responsiveness, bounded USB marker reads and hash-verification progress. Existing interruption/recovery, out-of-space, source preservation, and both-volume eject tests pass. Browser and real Electron editor checks pass. Native macOS conversion/editor/signature checks run in release CI. Runtime dependency audit reports zero known vulnerabilities. Physical USB transfer, Finder icon rendering/cache behavior and player hardware playback remain hardware validation.
+
+## 4.4.2 refresh and cancellation follow-up
+
+78 application tests pass. New regression tests verify that an automatic metadata refresh does not abort a long duplicate comparison, device operations do pause it, unchanged device manifests are reused by index checksum, manual refresh rereads them, and each refresh inspects the device only once. The current desktop smoke test and editor check pass on Linux. Mac release CI repeats native encoder/editor and signature verification for the final version.

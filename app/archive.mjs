@@ -155,10 +155,11 @@ export function convertChrome(info,names) {
   if(used.size!==audio.length)throw new Error('Some local audio files have no chapter metadata; nothing was skipped.');
   return {format:'myo-studio-archive',title:info.title,...(info.coverName?{cover:info.coverName.slice(info.prefix.length)}:{}),tracks};
 }
-export async function prepare(source,{convertOpus=false,conversionCache,onConversion=()=>{},cancelled=()=>false,encode,onTiming,editPlan,normalizeIcon,onPreparation=()=>{}}={}) {
+export async function prepare(source,{convertOpus=false,conversionCache,onConversion=()=>{},cancelled=()=>false,encode,onTiming,editPlan,normalizeIcon,onPreparation=()=>{},signal}={}) {
   onPreparation({phase:'Reading audio details',file:path.basename(source)});const info=await inspect(source);const a=await openArchive(source);let extracted;
-  try {onPreparation({phase:'Extracting audio',file:path.basename(source)});extracted=await a.extract();}finally{a.close();}
+  try {onPreparation({phase:'Extracting audio',file:path.basename(source)});extracted=await a.extract(undefined,{signal});}finally{a.close();}
   try{
+    if(cancelled()||signal?.aborted)throw new Error('Transfer cancelled.');
     const opusFiles=editPlan?info.opusFiles.filter(n=>editPlan.tracks.some(t=>t.key===n&&!t.excluded)):info.opusFiles;
     if(convertOpus&&opusFiles.length){
       if((await fs.lstat(source)).isDirectory()){

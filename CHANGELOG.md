@@ -1,3 +1,10 @@
+# 4.4.2
+
+- Long duplicate comparisons continue through metadata-only automatic refresh and still pause for device operations.
+- Reuse the connection probe and cache unchanged device manifests by the library index checksum; manual Refresh bypasses this cache.
+- Report cancellation immediately and cancel archive extraction during transfers/offline preparation.
+- Update the desktop smoke test for “Pocket disconnected”.
+
 # 4.4.1
 
 - Guard destroyed Electron windows during quit, activation, notifications and IPC; handle startup failures.

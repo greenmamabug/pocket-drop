@@ -24,12 +24,12 @@ async function noLinks(root){
   const s=await fs.lstat(root).catch(()=>null);if(s){if(s.isSymbolicLink()||!s.isDirectory())throw new Error('Unsafe Studio Pocket library path.');await tree(root);}
 }
 export class Device {
-  constructor(volume='/Volumes/Y2 MAIN',verify=verifyMacVolume,{volumeUUID}={}){this.volume=volume;this.volumeUUID=volumeUUID;this.nativeVerify=verify===verifyMacVolume;this.verify=v=>verify(v,{expectedUUID:this.volumeUUID});this.root=path.join(volume,'STUDIOPOCKET');}
+  constructor(volume='/Volumes/Y2 MAIN',verify=verifyMacVolume,{volumeUUID}={}){this.volume=volume;this.volumeUUID=volumeUUID;this.nativeVerify=verify===verifyMacVolume;this.verify=v=>verify(v,{expectedUUID:this.volumeUUID});this.root=path.join(volume,'STUDIOPOCKET');this.manifestCache=new Map();}
   async resolveVolume(){if(this.nativeVerify&&this.volumeUUID){const info=await onboardInfo({expectedUUID:this.volumeUUID});this.volume=info.MountPoint;this.root=path.join(this.volume,'STUDIOPOCKET');}}
   async connectionStatus(){
     try{await this.resolveVolume();await this.verify(this.volume);for(const file of [this.root,path.join(this.root,'device.json')]){const st=await fs.lstat(file).catch(()=>null);if(st?.isSymbolicLink())throw new Error('Unsafe device path.');}const info=await inspectDevice(this.volume);return{connected:true,deviceId:info.marker?.deviceId};}catch{return{connected:false};}
   }
-  async inspect(){
+  async inspect({fresh=false}={}){
     try{
       await this.resolveVolume();await this.verify(this.volume);
       const rootInfo=await fs.lstat(this.root).catch(()=>null);if(rootInfo?.isSymbolicLink())throw new Error('Unsafe library path.');
@@ -40,7 +40,9 @@ export class Device {
       try{index=validateLibraryIndex(JSON.parse(await bounded(path.join(info.root,'library.json'))));}catch{}
       for(const entry of index?.playlists??[]){
         try{const dir=path.join(info.root,'playlists',entry.id);const real=await fs.realpath(dir);const back=path.relative(info.root,real);if(back.startsWith('..')||path.isAbsolute(back))throw new Error('Unsafe playlist path.');
-          const text=await bounded(path.join(dir,'manifest.json'));const manifest=validatePlaylistManifest(JSON.parse(text));
+          const cacheKey=info.marker?.deviceId+':'+entry.id+':'+entry.manifestSha256,cached=!fresh&&entry.manifestSha256?this.manifestCache.get(cacheKey):null;
+          const manifest=cached??validatePlaylistManifest(JSON.parse(await bounded(path.join(dir,'manifest.json'))));
+          if(!cached)this.manifestCache.set(cacheKey,manifest);
           if(manifest.id!==entry.id)throw new Error('Wrong playlist identity.');
           playlists.push({id:entry.id,manifest,ok:true,problems:[]});
         }catch{playlists.push({id:entry.id,manifest:null,ok:false,problems:['Unreadable playlist metadata']});}

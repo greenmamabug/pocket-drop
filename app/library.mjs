@@ -34,10 +34,10 @@ export class Library extends EventEmitter{
   async stopScan(){this.stopRequested=true;if(this.scanTask)await this.scanTask;}
   async runScan(force=false){
     if(this.busy||this.scanning||this.probing)return;
-    this.probing=true;let probe;
+    this.probing=true;let probe,probedDevice;
     try{
       await fs.mkdir(this.inbox,{recursive:true});
-      const d=await this.device.inspect();
+      const d=await this.device.inspect({fresh:force});probedDevice=d;
       const ds=d.connected?JSON.stringify([d.deviceId,d.check]):'disconnected';
       const items=(await fs.readdir(this.inbox,{withFileTypes:true})).filter(e=>!e.name.startsWith('.')&&(e.isDirectory()||/\.(zip|7z)$/i.test(e.name)||e.isSymbolicLink()));
       const stamps=[];for(const e of items)stamps.push([e.name,await fingerprint(path.join(this.inbox,e.name)).catch(()=>null)]);
@@ -47,7 +47,7 @@ export class Library extends EventEmitter{
     if(this.stopRequested||this.busy)return;this.scanning=true;this.scanMessage='Refreshing…';this.publish();
     try{
       await fs.mkdir(this.inbox,{recursive:true});
-      this.deviceState=await this.device.inspect();
+      this.deviceState=probedDevice;
       if(this.catalog&&!this.catalog.data.collectionSetup&&!this.catalog.data.groups.length&&this.deviceState.check?.groups?.groups?.length)await this.catalog.groups(this.deviceState.check.groups.groups);
       const deviceSig=this.deviceState.connected?JSON.stringify([this.deviceState.deviceId,this.deviceState.check]):'disconnected';
       const found=[];const live=new Set();
@@ -109,13 +109,13 @@ export class Library extends EventEmitter{
     if(kind==='remove'&&selected.some(r=>!r.onDevice))throw new Error('Select audiobooks currently on MYO Pocket.');
     if(kind==='sync'&&selected.some(r=>!r.local||!['ready','update','current','unverified'].includes(r.status)))throw new Error('Some selected audiobooks are not ready to sync.');
     if(new Set(selected.map(r=>r.id)).size!==selected.length)throw new Error('Select only one local edition of each title.');
-    this.lastResult=null;this.plannedTransferBytes=null;this.operationStartedAt=Date.now();this.operationCount=selected.length;this.busy=true;this.operation=kind;this.cancelled=false;this.progress={phase:kind==='remove'?'Removing from Pocket':'Preparing audiobooks',percent:0};this.publish();const prepared=[],estimate=new FileEstimate(selected.reduce((n,r)=>n+(this.catalog?.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).length??r.opusCount??0),0));let completed=false,deviceStarted=false,preparingKey=null;
+    this.lastResult=null;this.plannedTransferBytes=null;this.operationStartedAt=Date.now();this.operationCount=selected.length;this.busy=true;this.operation=kind;this.cancelled=false;this.transferAbort=new AbortController();this.progress={phase:kind==='remove'?'Removing from Pocket':'Preparing audiobooks',percent:0};this.publish();const prepared=[],estimate=new FileEstimate(selected.reduce((n,r)=>n+(this.catalog?.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).length??r.opusCount??0),0));let completed=false,deviceStarted=false,preparingKey=null;
     try{
       for(const row of kind==='sync'?selected:[]){preparingKey=row.key;
         this.progress={phase:'Preparing '+row.title,percent:selected.some(r=>r.opusCount)?Math.round(selected.indexOf(row)/selected.length*30):0};this.publish();
         const source=path.join(this.inbox,row.source);const old=this.cache.get(source);const fp=await fingerprint(source);
         if(!old||old.fp!==fp)throw new Error('An audiobook changed. Refresh before syncing.');
-        const p=await prepare(source,{...this.conversionOptions,convertOpus:this.convertOpus,conversionCache:this.conversionCache,editPlan:this.catalog?.get(row.key).edits,cancelled:()=>this.cancelled,onPreparation:e=>{this.progress={phase:e.phase+' · '+row.title+' · '+e.file,percent:Math.round(selected.indexOf(row)/selected.length*30)};this.publishProgress();},onConversion:e=>{const conversionEtaAt=estimate.update(row.key+':'+e.index,e.phase);this.progress={conversionEtaAt,phase:`${e.phase==='Using converted audio'?'Using converted AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC'} · ${row.title} · file ${e.index} of ${e.total} · ${e.file} · ${e.total-e.index} remaining`,conversionFraction:(selected.indexOf(row)+e.percent)/selected.length,conversionKey:e.phase==='Using converted audio'?null:row.key,percent:Math.round((selected.indexOf(row)+e.percent)/selected.length*30)};this.publishProgress();}});await this.transformPrepared?.(p,row);prepared.push(p);
+        const p=await prepare(source,{...this.conversionOptions,convertOpus:this.convertOpus,conversionCache:this.conversionCache,editPlan:this.catalog?.get(row.key).edits,signal:this.transferAbort.signal,cancelled:()=>this.cancelled,onPreparation:e=>{this.progress={phase:e.phase+' · '+row.title+' · '+e.file,percent:Math.round(selected.indexOf(row)/selected.length*30)};this.publishProgress();},onConversion:e=>{const conversionEtaAt=estimate.update(row.key+':'+e.index,e.phase);this.progress={conversionEtaAt,phase:`${e.phase==='Using converted audio'?'Using converted AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC'} · ${row.title} · file ${e.index} of ${e.total} · ${e.file} · ${e.total-e.index} remaining`,conversionFraction:(selected.indexOf(row)+e.percent)/selected.length,conversionKey:e.phase==='Using converted audio'?null:row.key,percent:Math.round((selected.indexOf(row)+e.percent)/selected.length*30)};this.publishProgress();}});await this.transformPrepared?.(p,row);prepared.push(p);
         if((row.content&&!row.edited&&!p.info.opusFiles.length&&await contentKey(p.playlist)!==row.content)||await fingerprint(source)!==fp)throw new Error('An audiobook changed. Refresh before syncing.');
       }
       for(let i=0;i<prepared.length;i++){
@@ -147,7 +147,7 @@ export class Library extends EventEmitter{
     }catch(err){this.lastResult={id:randomUUID(),kind,problem:describeProblem(err),tone:this.cancelled?'warning':'error',message:this.cancelled?'Sync cancelled':kind==='remove'?'Removal needs attention':'Sync needs attention',details:selected.map(row=>({title:row.title,status:'needs-attention',message:!deviceStarted&&preparingKey!==row.key?'Not transferred. Resolve the issue and try again.':friendly(err)})),warnings:[deviceStarted?'Check Recent Activity before retrying.':'Nothing was written to Pocket.']};await this.log(friendly(err)+(deviceStarted?' The operation may be incomplete; refresh and retry.':' Nothing was written to Pocket.'),'error');this.progress={phase:friendly(err),error:true,percent:0};throw new Error(friendly(err));}
     finally{
       try{const cleaned=await Promise.allSettled(prepared.map(p=>p.cleanup()));if(cleaned.some(r=>r.status==='rejected'))await this.log('Temporary-file cleanup was incomplete.','warning');}
-      finally{this.busy=false;this.operation=null;this.operationCount=0;if(!completed)for(const entry of this.cache.values())entry.deviceSig=null;this.lastProbe=null;this.publish();}
+      finally{this.busy=false;this.operation=null;this.transferAbort=null;this.operationCount=0;if(!completed)for(const entry of this.cache.values())entry.deviceSig=null;this.lastProbe=null;this.publish();}
       await this.scan();
     }
   }

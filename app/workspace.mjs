@@ -39,7 +39,7 @@ export class Workspace{
     this.requireNoPreparation();if(this.library.busy||this.library.scanning)throw new Error('Wait for the current operation to finish.');
     if(!Array.isArray(keys)||!keys.length||keys.length>500)throw new Error('Choose audio to prepare.');
     const rows=keys.map(k=>this.row(k));rows.forEach(r=>this.source(r));
-    const startedAt=Date.now(),estimate=new FileEstimate(rows.reduce((n,r)=>n+(this.catalog.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).length??r.opusCount??0),0));let cancelled=false;this.cancelPreparation=()=>{cancelled=true;};
+    const startedAt=Date.now(),estimate=new FileEstimate(rows.reduce((n,r)=>n+(this.catalog.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).length??r.opusCount??0),0));let cancelled=false;const abort=new AbortController();this.cancelPreparation=()=>{cancelled=true;abort.abort();};
     const progress=(value)=>{this.library.preparation={...this.library.preparation,...value,startedAt,elapsedMs:Date.now()-startedAt};this.library.preparation.estimateAt=estimate.estimateAt;this.library.preparation.remainingMs=estimate.estimateAt?Math.max(0,estimate.estimateAt-Date.now()):null;if(value.running!==undefined)this.library.publish();else this.library.publishProgress();};
     progress({running:true,phase:'Preparing audio',percent:0,items:rows.length});
     const task=(async()=>{
@@ -47,7 +47,7 @@ export class Workspace{
       for(let i=0;i<rows.length;i++){
         if(cancelled)throw new Error('Audio preparation cancelled.');const row=rows[i],source=this.source(row),fp=await fingerprint(source),saved=this.catalog.get(row.key),editRevision=revision(saved.edits);
         progress({phase:'Preparing '+row.title,percent:Math.round(i/rows.length*100)});
-        const p=await prepare(source,{...this.library.conversionOptions,convertOpus:this.library.convertOpus,conversionCache:this.library.conversionCache,editPlan:saved.edits,cancelled:()=>cancelled,onConversion:e=>{estimate.update(row.key+':'+e.index,e.phase);progress({phase:e.phase==='Using converted audio'?'Using prepared AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC',file:e.file,fileIndex:e.index,fileTotal:e.total,percent:Math.round((i+e.percent)/rows.length*100)});}});
+        const p=await prepare(source,{...this.library.conversionOptions,convertOpus:this.library.convertOpus,conversionCache:this.library.conversionCache,editPlan:saved.edits,signal:abort.signal,cancelled:()=>cancelled,onConversion:e=>{estimate.update(row.key+':'+e.index,e.phase);progress({phase:e.phase==='Using converted audio'?'Using prepared AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC',file:e.file,fileIndex:e.index,fileTotal:e.total,percent:Math.round((i+e.percent)/rows.length*100)});}});
         try{await this.apply(p,row);if(await fingerprint(source)!==fp||revision(this.catalog.get(row.key).edits)!==editRevision)throw new Error('Source or edits changed during preparation. Try again.');const bytes=p.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0);await this.catalog.set(row.key,{prepared:{fp,editRevision,bytes,convertedKeys:saved.edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??p.info.opusFiles},searchTracks:p.playlist.tracks.map(t=>t.entry.title)});const cached=this.library.cache.get(source);if(cached)cached.row.preparedBytes=bytes;}
         finally{await p.cleanup();}
       }
@@ -82,8 +82,8 @@ export class Workspace{
   duplicatePublish(value){this.library.duplicates=value;this.publishingDuplicates=true;try{this.library.publish();}finally{this.publishingDuplicates=false;}}
   scheduleDuplicates(){
     clearTimeout(this.duplicateTimer);
-    if(this.library.busy||this.library.refreshing||this.library.scanning||this.preparingTask||this.library.preparation?.running){this.duplicateAbort?.abort();return;}
-    if(this.duplicateTask)return;
+    if(this.library.busy||this.preparingTask||this.library.preparation?.running){this.duplicateAbort?.abort();return;}
+    if(this.duplicateTask||this.library.refreshing||this.library.scanning)return;
     const candidates=this.duplicateCandidates(),signature=revision(candidates.map(rows=>rows.map(r=>[r.key,r.sourceFingerprint,revision(this.catalog.get(r.key).edits)])));
     if(signature===this.duplicateSignature)return;
     this.duplicateTimer=setTimeout(()=>{this.duplicateTimer=null;this.duplicateTask=this.checkDuplicates(candidates,signature).catch(()=>{}).finally(()=>{this.duplicateTask=null;this.scheduleDuplicates();});},1500);this.duplicateTimer.unref?.();
@@ -101,7 +101,7 @@ export class Workspace{
     const check=()=>{if(signal?.aborted||this.library.busy||this.preparingTask)throw new Error('Duplicate check paused.');};
     for(const key of keys){check();const row=this.row(key),source=this.source(row),fp=await fingerprint(source),cached=useCache?cache[key]:null;let record;
       if(cached?.fp===fp)record={...cached.record};
-      else{const doc=await trackDocument(source,{signal});try{const hashes=[];for(const t of doc.tracks){check();const hash=createHash('sha256');for await(const chunk of createReadStream(path.join(doc.root,t.key),{highWaterMark:1024*1024})){check();hash.update(chunk);}hashes.push(hash.digest('hex'));}record={key,source:row.source,tracks:hashes.length,orderHash:revision(hashes),audioHash:revision([...hashes].sort()),metadataRevision:revision(doc.tracks.map(t=>({title:t.title,icon:t.iconKey})))};check();cache[key]={fp,record};}finally{await doc.cleanup();}}
+      else{const doc=await trackDocument(source,{signal});try{const hashes=[];for(const t of doc.tracks){check();const hash=createHash('sha256');for await(const chunk of createReadStream(path.join(doc.root,t.key),{highWaterMark:1024*1024})){check();hash.update(chunk);}hashes.push(hash.digest('hex'));}record={key,source:row.source,tracks:hashes.length,orderHash:revision(hashes),audioHash:revision([...hashes].sort()),metadataRevision:revision(doc.tracks.map(t=>({title:t.title,icon:t.iconKey})))};check();if(await fingerprint(source)!==fp)throw new Error('Original changed during duplicate comparison.');cache[key]={fp,record};}finally{await doc.cleanup();}}
       records.push({...record,title:row.title,editRevision:revision(this.catalog.get(key).edits)});
     }
     check();await this.catalog.save();return{items:records.map(r=>({...r,comparison:(r.orderHash===records[0].orderHash?'Identical audio in the same order':r.audioHash===records[0].audioHash?'Same audio files, different order':'Different audio or edition')+(r.editRevision!==records[0].editRevision||r.metadataRevision!==records[0].metadataRevision?' · names, icons, or saved edits differ':'')}))};

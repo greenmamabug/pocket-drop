@@ -68,7 +68,7 @@ app.whenReady().then(async()=>{
     if(choice.response===1)await library.transfer(keys,'remove',id);
   });
   handle('eject',()=>performEject({library,pause:pauseMonitoring,resume:monitor,record,eject:()=>ejectPocket({mainVolume:library.device.volume,mainUUID:library.device.volumeUUID,confirmSeparate:async volumes=>{const choice=await dialog.showMessageBox(win,{type:'question',title:'Eject both player volumes?',message:'Are these both MYO Pocket storage volumes?',detail:volumes.map(v=>v.VolumeName+' ('+v.ParentWholeDisk+')').join('\n')+'\n\nmacOS reports them as separate USB disks. Confirm these are your player’s onboard and external storage. Both will be ejected without force-unmounting.',buttons:['Cancel','Eject both'],defaultId:0,cancelId:0});return choice.response===1;}})}));
-  handle('cancel',()=>{if(library.busy){library.cancelled=true;library.publish();}});
+  handle('cancel',()=>{if(library.busy){library.cancelled=true;library.transferAbort?.abort();library.progress={...library.progress,phase:'Cancelling transfer…'};library.publish();}});
   handle('chooseInbox',async()=>{idle();const chosen=await dialog.showOpenDialog(win,{title:'Choose Pocket Drop Inbox Folder',defaultPath:library.inbox,properties:['openDirectory','createDirectory']});if(chosen.canceled)return;const folder=await fs.realpath(chosen.filePaths[0]);if(folder==='/'||folder.startsWith('/Volumes/'))throw new Error('Choose a folder on your computer for your permanent collection.');config.inbox=folder;library.inbox=folder;library.cache.clear();await save();monitor();await library.scan();});
   handle('renameDrive',async name=>{
     if(library.busy)throw new Error('Wait for the current device operation to finish.');
