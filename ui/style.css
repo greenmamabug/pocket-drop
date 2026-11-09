@@ -144,3 +144,5 @@ svg,[data-icon]{overflow:visible}
 .table-panel tr{grid-template-columns:190px minmax(140px,min(var(--title-column-width),calc(100% - 410px))) 76px 94px minmax(46px,1fr)}.length-column{width:94px}.length{font-size:calc(var(--library-text) - 3px);line-height:1.4;white-space:normal;color:#866b98;font-variant-numeric:tabular-nums}.length-column button{white-space:nowrap}@media(max-width:1000px){.table-panel tr{grid-template-columns:170px minmax(120px,min(var(--title-column-width),calc(100% - 366px))) 68px 82px minmax(46px,1fr)}.length-column{width:82px}}
 
 .table-panel td.length{padding-left:8px;padding-right:8px}
+
+.library-actions:not(:has(> :not([hidden]))){display:none}

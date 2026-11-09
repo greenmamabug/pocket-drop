@@ -6,7 +6,7 @@ export class BackgroundTasks{
  resume(){this.paused=false;}
 }
 export async function performEject({library,pause,resume,eject,record=()=>{}}){
- if(library.busy)throw new Error('Wait for the current device operation to finish.');
+ if(library.busy||library.compositeSync)throw new Error('Wait for the current device operation to finish.');
  library.busy=true;library.operation='eject';library.progress={phase:'Ejecting, please wait…',percent:0};
  try{
   library.publish();

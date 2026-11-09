@@ -21,13 +21,12 @@ const actionable=r=>r.local&&(!r.onDevice||r.edited)&&['ready','update','unverif
 const selectable=r=>r.onDevice||actionable(r);
 function visibleRows(){
   const q=$('search').value.toLowerCase().trim(),sort=sorts[filter];
-  const group=state.collections?.find(g=>g.id===$('collection-filter').value);
-  const rows=state.rows.filter(r=>!r.hidden&&(!group||group.playlists.includes(r.id))&&(filter!=='device'||r.onDevice)&&(filter!=='missing'||(state.device.connected&&r.local&&!r.onDevice))&&(!q||[r.title,...(r.searchTracks??[]),...(r.tags??[])].some(t=>t.toLowerCase().includes(q))));
+  const rows=state.rows.filter(r=>!r.hidden&&(filter!=='device'||r.onDevice)&&(filter!=='missing'||(state.device.connected&&r.local&&!r.onDevice))&&(!q||[r.title,...(r.searchTracks??[]),...(r.tags??[])].some(t=>t.toLowerCase().includes(q))));
   if(sort.key)rows.sort((a,b)=>{let value;if(sort.key==='size')value=(a.size??0)-(b.size??0);else if(sort.key==='length'){if(a.durationMs==null||b.durationMs==null)return a.durationMs==null?(b.durationMs==null?collator.compare(a.title,b.title):1):-1;value=a.durationMs-b.durationMs;}else if(sort.key==='title')value=collator.compare(a.title,b.title);else if(filter==='device')value=Number(removeSelection.has(a.key))-Number(removeSelection.has(b.key));else value=collator.compare(labels[a.status]?.[1]??a.status,labels[b.status]?.[1]??b.status);return sort.dir*(value||collator.compare(a.title,b.title));});
   return rows;
 }
 function renderBooks(){
-  const rows=visibleRows(),locked=state.busy||state.scanning;const group=state.collections?.find(g=>g.id===$('collection-filter').value),scope=state.rows.filter(r=>!r.hidden&&(!group||group.playlists.includes(r.id)));const offlineFilter=filter==='missing'&&!state.device.connected;$('empty-open').hidden=offlineFilter;document.querySelector('.empty-foot').hidden=offlineFilter;
+  const rows=visibleRows(),locked=state.busy||state.scanning;const scope=state.rows.filter(r=>!r.hidden);const offlineFilter=filter==='missing'&&!state.device.connected;$('empty-open').hidden=offlineFilter;document.querySelector('.empty-foot').hidden=offlineFilter;
   $('rows').innerHTML=rows.map(r=>{
     const label=labels[r.status]??labels.error;
     let status;
@@ -49,11 +48,12 @@ function renderBooks(){
   $('sort-status').textContent=filter==='device'?'Remove selection':'Status';
   $('row-actions-heading').hidden=filter==='device';$('rows').querySelectorAll('.menu-cell').forEach(e=>e.hidden=filter==='device');
   document.querySelectorAll('[data-sort]').forEach(e=>{const current=sorts[filter];e.parentElement.setAttribute('aria-sort',current.key===e.dataset.sort?(current.dir===1?'ascending':'descending'):'none');});
+  const collectionsPending=!!state.collectionSyncNeeded;
   const chosen=state.rows.filter(r=>selected.has(r.key)&&actionable(r)),onDevice=state.rows.filter(r=>r.onDevice&&removeSelection.has(r.key));
   const removing=state.busy&&state.operation==='remove';
-  $('selection-title').textContent=(filter==='device'||(filter==='all'&&onDevice.length))?(onDevice.length?onDevice.length+' selected for removal':'Select audio to remove from Pocket'):(chosen.length?chosen.length+' in sync queue':'No audio items selected');
-  $('selection-detail').textContent=(filter==='device'||(filter==='all'&&onDevice.length))?'':chosen.length?bytes(chosen.reduce((n,r)=>n+(r.transferBytes??r.size),0))+' to transfer':'Select Not on Pocket to choose audio.';
-  $('sync').hidden=filter==='device';document.querySelector('.sync-controls').hidden=filter==='device';$('sync').disabled=locked||state.preparation?.running||!state.device.connected||!state.device.initialized||!chosen.length;
+  $('selection-title').textContent=(filter==='device'||(filter==='all'&&onDevice.length))?(onDevice.length?onDevice.length+' selected for removal':'Select audio to remove from Pocket'):(chosen.length?chosen.length+' in sync queue':collectionsPending?'Collection changes ready to sync':'No audio items selected');
+  $('selection-detail').textContent=(filter==='device'||(filter==='all'&&onDevice.length))?'':chosen.length?bytes(chosen.reduce((n,r)=>n+(r.transferBytes??r.size),0))+' to transfer':collectionsPending?'Sync will update your collections on Pocket.':'Select Not on Pocket to choose audio.';
+  $('sync').hidden=filter==='device';document.querySelector('.sync-controls').hidden=filter==='device';$('sync').disabled=locked||state.preparation?.running||!state.device.connected||!state.device.initialized||(!chosen.length&&!collectionsPending);
   $('remove-selected').hidden=(filter==='missing'&&!removing)||(filter!=='device'&&!onDevice.length&&!removing);$('remove-selected').disabled=locked||!state.device.connected||!onDevice.length;
   const syncCount=state.busy&&state.operation==='sync'?(state.operationCount??chosen.length):chosen.length;
   const removeCount=removing?(state.operationCount??onDevice.length):onDevice.length;

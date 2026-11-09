@@ -124,3 +124,7 @@ Numbered-layout follow-up: the full suite passed 66 tests, including extracted f
 ## 4.4.4 archive picture performance and old duration-cache reuse
 
 84 application tests pass. Additional tests verify concurrent solid-7z picture requests share one extraction, audio is not extracted for those pictures, temporary pictures are removed on close, source bytes remain unchanged, and an old cached manifest supplies Length offline before and after refresh without audio probing. Native Electron editor and browser checks pass. Existing diagnostic logs, transfer stage progress, Save / Save and close and persistent opening indications are retained.
+
+## 4.4.5 simpler main library and automatic collection arrangements
+
+88 application tests pass, including normal Sync with pending collections, metadata-only collection sync without recopying audio, explicit preservation of unselected audio, partial-success reporting after collection-write failure, cancellation between stages, and quit protection during the combined operation. Browser checks verify the main dropdown/preparation button are absent, optional preparation remains in Settings, and collection-only Sync is enabled and sends an empty audio selection. Existing Length/sorting, Save / Save and close, editor, Ogg, source preservation and recovery checks remain. The inspected open-source player loads groups.json after storage returns from USB and hides groups with no playable members. Physical device firmware and collection display have not been independently tested.

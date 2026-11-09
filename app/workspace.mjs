@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import fs from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import path from 'node:path';
+import {collectionsPending,collectionRevision} from './collection-state.mjs';
 import {DurationIndex} from './duration-index.mjs';
 import {FileEstimate} from './progress-estimate.mjs';
 import {Editor,trackDocument} from './editor.mjs';
@@ -16,7 +17,7 @@ export class Workspace{
     this.library=library;this.catalog=catalog;this.editor=new Editor(catalog);this.renderCover=renderCover;this.notify=notify;
     library.transformPrepared=(prepared,row)=>this.apply(prepared,row);
     library.on('change',()=>{if(!this.publishingDuplicates)this.scheduleDuplicates();});
-    this.durations=new DurationIndex(library,catalog,{canWork:()=>!this.preparingTask&&!this.duplicateTask&&!this.openingDetails&&!this.editor.sessions.size});
+    this.durations=new DurationIndex(library,catalog,{canWork:()=>!this.preparingTask&&!this.syncingCollections&&!this.duplicateTask&&!this.openingDetails&&!this.editor.sessions.size});
   }
   row(key){const row=this.library.rows.find(r=>r.key===key);if(!row)throw new Error('This audio item is no longer in the library. Refresh and try again.');return row;}
   source(row){if(!row.local)throw new Error('Add the original to your Inbox to edit or prepare this audio item.');return path.join(this.library.inbox,row.source);}
@@ -32,11 +33,11 @@ export class Workspace{
     prepared.playlist.manifest.tracks=prepared.playlist.tracks.map(t=>t.entry);
     if(edits.coverRef){prepared.playlist.coverPath=await this.renderCover(edits.coverRef,edits);prepared.playlist.manifest.cover='cover.png';}
   }
-  async open(key){if(this.library.busy)throw new Error('Wait for the current device operation.');this.openingDetails=true;this.durations.pause();try{const row=this.row(key);return await this.editor.open(row,this.source(row),(()=>{const entry=this.library.cache.get(this.source(row));return entry?.info?{...entry.info,sourceFingerprint:entry.fp}:null;})());}finally{this.openingDetails=false;this.durations.schedule();}}
-  async save(id,input){if(this.library.busy||this.preparingTask)throw new Error('Finish or cancel the current operation before saving edits.');const result=await this.editor.save(id,input);const session=this.editor.session(id);if(!result.coverRef)await this.catalog.set(session.rowKey,{coverData:null});const cached=this.library.cache.get(session.source);if(cached){delete cached.row.content;delete cached.row.preparedBytes;delete cached.manifest;}
+  async open(key){if(this.library.busy||this.syncingCollections)throw new Error('Wait for the current device operation.');this.openingDetails=true;this.durations.pause();try{const row=this.row(key);return await this.editor.open(row,this.source(row),(()=>{const entry=this.library.cache.get(this.source(row));return entry?.info?{...entry.info,sourceFingerprint:entry.fp}:null;})());}finally{this.openingDetails=false;this.durations.schedule();}}
+  async save(id,input){if(this.library.busy||this.preparingTask||this.syncingCollections)throw new Error('Finish or cancel the current operation before saving edits.');const result=await this.editor.save(id,input);const session=this.editor.session(id);if(!result.coverRef)await this.catalog.set(session.rowKey,{coverData:null});const cached=this.library.cache.get(session.source);if(cached){delete cached.row.content;delete cached.row.preparedBytes;delete cached.manifest;}
     await this.library.scan(true);return result;
   }
-  requireNoPreparation(){if(this.preparingTask)throw new Error('Finish or cancel audio preparation before syncing.');}
+  requireNoPreparation(){if(this.syncingCollections)throw new Error('Wait for the current sync to finish.');if(this.preparingTask)throw new Error('Finish or cancel audio preparation before syncing.');}
   async prepareAudio(keys){
     this.requireNoPreparation();if(this.library.busy||this.library.scanning)throw new Error('Wait for the current operation to finish.');
     if(!Array.isArray(keys)||!keys.length||keys.length>500)throw new Error('Choose audio to prepare.');
@@ -68,23 +69,45 @@ export class Workspace{
     for(const id of ids){const rows=this.library.rows.filter(r=>r.id===id&&!r.hidden),local=rows.find(r=>r.local),onPocket=rows.some(r=>r.onDevice);
       if(!onPocket||local?.edited){if(!local||!['ready','update','current','unverified','disconnected'].includes(local.status))throw new Error(`Add the original for “${local?.title??id}” to your Inbox before syncing this collection.`);keys.push(local.key);}
     }
-    return{groups,keys,deviceId:this.library.deviceState.deviceId,revision:revision({groups,pictures:this.catalog.data.collectionPictures})};
+    return{groups,keys,deviceId:this.library.deviceState.deviceId,revision:collectionRevision(this.catalog.data)};
   }
   async syncCollections(plan){
     this.requireNoPreparation();if(this.syncingCollections||this.library.busy)throw new Error('Wait for the current operation.');if(!this.library.deviceState.connected)throw new Error('Connect Pocket to sync collections.');
-    const unchanged=()=>{if(this.library.deviceState.deviceId!==plan.deviceId||revision({groups:this.catalog.data.groups,pictures:this.catalog.data.collectionPictures})!==plan.revision)throw new Error('Pocket or its collections changed. Review Sync Collections again.');};unchanged();this.syncingCollections=true;
+    const unchanged=()=>{if(this.library.deviceState.deviceId!==plan.deviceId||collectionRevision(this.catalog.data)!==plan.revision)throw new Error('Pocket or its collections changed. Review Sync Collections again.');};unchanged();this.library.cancelled=false;this.syncingCollections=true;this.library.compositeSync=true;this.library.compositeCount=plan.keys.length;
     try{
       if(plan.keys.length)await this.library.transfer(plan.keys,'sync',plan.deviceId);
       unchanged();this.library.busy=true;this.library.operation='collections';this.library.progress={phase:'Syncing collections',percent:95};this.library.publish();
-      const icons=new Map();for(const group of plan.groups){const picture=this.catalog.data.collectionPictures?.[group.id];if(picture?.iconRef&&group.icon)icons.set(group.icon,this.editor.asset(picture.iconRef));}
-      await this.library.device.saveGroups(plan.groups,{icons,ownedIds:this.catalog.data.ownedGroups,expectedDeviceId:plan.deviceId});await this.library.log('Collections synced to Pocket.','success');this.library.progress={phase:'Collections synced',percent:100};
-    }finally{this.syncingCollections=false;this.library.busy=false;this.library.operation=null;this.library.publish();await this.library.scan(true);}
+      await this.writeCollections(plan.groups,plan.deviceId,plan.revision);await this.library.log('Collections synced to Pocket.','success');this.library.progress={phase:'Collections synced',percent:100};
+    }finally{this.syncingCollections=false;this.library.compositeSync=false;this.library.compositeCount=0;this.library.busy=false;this.library.operation=null;this.library.publish();await this.library.scan(true);}
+  }
+  async writeCollections(groups,deviceId,expectedRevision){
+    if(collectionRevision(this.catalog.data)!==expectedRevision)throw new Error('Collections changed. Review Sync again.');
+    const icons=new Map();for(const group of groups){const picture=this.catalog.data.collectionPictures?.[group.id];if(picture?.iconRef&&group.icon)icons.set(group.icon,this.editor.asset(picture.iconRef));}
+    await this.library.device.saveGroups(groups,{icons,ownedIds:this.catalog.data.ownedGroups,expectedDeviceId:deviceId,cancelled:()=>this.library.cancelled});
+    this.catalog.data.collectionsSynced??={};this.catalog.data.collectionsSynced[deviceId]=expectedRevision;await this.catalog.save();
+  }
+  async syncAudio(keys,deviceId){
+    this.requireNoPreparation();if(this.syncingCollections||this.library.busy)throw new Error('Wait for the current operation.');
+    const includeCollections=collectionsPending(this.library.deviceState,this.catalog.data),groups=structuredClone(this.catalog.data.groups),groupRevision=collectionRevision(this.catalog.data);
+    if(!keys.length&&!includeCollections)throw new Error('Choose audio or make collection changes before syncing.');
+    this.library.cancelled=false;this.syncingCollections=true;this.library.compositeSync=true;this.library.compositeCount=keys.length;let audioFinished=false,started=Date.now();
+    try{
+      if(keys.length){await this.library.transfer(keys,'sync',deviceId);audioFinished=true;}
+      if(includeCollections){this.library.busy=true;this.library.operation='sync';this.library.operationCount=keys.length;this.library.operationStartedAt=started;this.library.progress={phase:'Syncing collections',percent:95};this.library.publish();await this.writeCollections(groups,deviceId,groupRevision);
+        if(!keys.length)this.library.lastResult={id:randomUUID(),kind:'sync',tone:'success',message:'Collections synced to Pocket.',counts:{added:0,updated:0,unchanged:0,removed:0,skipped:0},details:groups.map(g=>({title:g.title,status:'updated',message:'Collection arrangement synced to Pocket.'})),warnings:[]};
+        else this.library.lastResult={...this.library.lastResult,id:randomUUID(),message:this.library.lastResult.message+' · collections synced'};
+        this.library.progress={phase:this.library.lastResult.message,percent:100};await this.library.log('Collections synced to Pocket. Eject Pocket to load the changes.','success');
+      }
+    }catch(error){
+      if(includeCollections&&(!keys.length||audioFinished)){const previous=this.library.lastResult;this.library.lastResult={...(audioFinished?previous:{}),id:randomUUID(),kind:'sync',tone:'warning',message:audioFinished?'Audio sync finished; collections need attention':'Collections need attention',details:audioFinished?previous.details:[],warnings:[...(audioFinished?previous.warnings:[]),'Collection changes were not confirmed. '+error.message]};this.library.progress={phase:this.library.lastResult.message,error:true,percent:audioFinished?90:0};await this.library.log(this.library.lastResult.message+'. '+error.message,'error');}
+      throw error;
+    }finally{this.syncingCollections=false;this.library.compositeSync=false;this.library.compositeCount=0;this.library.busy=false;this.library.operation=null;this.library.operationCount=0;this.library.publish();await this.library.scan(true);}
   }
   duplicateCandidates(){const groups=new Map();for(const row of this.library.rows.filter(r=>r.local&&!r.hidden&&r.id&&!['error','downloading','checking'].includes(r.status))){if(!groups.has(row.id))groups.set(row.id,[]);groups.get(row.id).push(row);}return[...groups.values()].filter(rows=>rows.length>1&&rows.length<=20);}
   duplicatePublish(value){this.library.duplicates=value;this.publishingDuplicates=true;try{this.library.publish();}finally{this.publishingDuplicates=false;}}
   scheduleDuplicates(){
     clearTimeout(this.duplicateTimer);
-    if(this.library.busy||this.preparingTask||this.library.preparation?.running){this.duplicateAbort?.abort();return;}
+    if(this.library.busy||this.syncingCollections||this.preparingTask||this.library.preparation?.running){this.duplicateAbort?.abort();return;}
     if(this.duplicateTask||this.library.refreshing||this.library.scanning)return;
     const candidates=this.duplicateCandidates(),signature=revision(candidates.map(rows=>rows.map(r=>[r.key,r.sourceFingerprint,revision(this.catalog.get(r.key).edits)])));
     if(signature===this.duplicateSignature)return;

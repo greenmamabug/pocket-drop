@@ -10,6 +10,7 @@ import {transferResult} from './transfer-result.mjs';
 import {FileEstimate} from './progress-estimate.mjs';
 import {describeProblem} from './problems.mjs';
 import {revision} from './catalog.mjs';
+import {collectionsPending} from './collection-state.mjs';
 import {durationFromManifest} from './duration-index.mjs';
 import { Device } from './device.mjs';
 export function friendly(error){
@@ -20,7 +21,7 @@ export function friendly(error){
 }
 export class Library extends EventEmitter{
   constructor({inbox,device=new Device(),thumbnail=async x=>x,stateFile,cacheFile,convertOpus=process.platform==='darwin',conversionCache,conversionOptions={},catalog}={}){super();this.catalog=catalog;this.convertOpus=convertOpus;this.conversionCache=conversionCache;this.conversionOptions=conversionOptions;this.inbox=inbox;this.device=device;this.thumbnail=thumbnail;this.stateFile=stateFile;this.cacheFile=cacheFile;this.rows=[];this.cache=new Map();this.logs=[];this.busy=false;this.scanning=false;this.progress=null;this.deviceState={connected:false};this.pending=new Map();this.lastResult=null;this.plannedTransferBytes=null;this.operationCount=0;}
-  snapshot(){return {inbox:this.inbox,rows:this.rows,collections:this.catalog?.data.groups??[],undoAvailable:!!this.catalog?.data.undo?.items?.length,preparation:this.preparation??null,duplicates:this.duplicates??{checking:false,groups:[]},collectionPictures:Object.fromEntries(Object.entries(this.catalog?.data.collectionPictures??{}).map(([id,p])=>[id,{thumbnail:p.thumbnail}])),operationStartedAt:this.operationStartedAt??null,device:this.deviceState,logs:this.logs,busy:this.busy,scanning:this.scanning,refreshing:!!this.refreshing,loading:this.scanning||!this.hasScanned,scanMessage:this.scanMessage,operation:this.operation,operationCount:this.operationCount,lastResult:this.lastResult,plannedTransferBytes:this.plannedTransferBytes,progress:this.progress};}
+  snapshot(){return {inbox:this.inbox,rows:this.rows,collections:this.catalog?.data.groups??[],collectionSyncNeeded:this.catalog?collectionsPending(this.deviceState,this.catalog.data):false,undoAvailable:!!this.catalog?.data.undo?.items?.length,preparation:this.preparation??null,duplicates:this.duplicates??{checking:false,groups:[]},collectionPictures:Object.fromEntries(Object.entries(this.catalog?.data.collectionPictures??{}).map(([id,p])=>[id,{thumbnail:p.thumbnail}])),operationStartedAt:this.operationStartedAt??null,device:this.deviceState,logs:this.logs,busy:this.busy||!!this.compositeSync,scanning:this.scanning,refreshing:!!this.refreshing,loading:this.scanning||!this.hasScanned,scanMessage:this.scanMessage,operation:this.operation??(this.compositeSync?'sync':null),operationCount:this.operationCount||this.compositeCount||0,lastResult:this.lastResult,plannedTransferBytes:this.plannedTransferBytes,progress:this.progress};}
   publish(){this.emit('change',this.snapshot());}
   publishProgress(){const now=performance.now();if(now-(this.lastProgressPublish??-Infinity)<180)return;this.lastProgressPublish=now;this.publish();}
   async saveCache(){if(this.cacheFile){const temp=this.cacheFile+'.part';await fs.writeFile(temp,JSON.stringify([...this.cache]));await fs.rename(temp,this.cacheFile);}}

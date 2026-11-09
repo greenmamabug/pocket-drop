@@ -1,3 +1,11 @@
+# 4.4.5
+
+- Remove the collection dropdown and Prepare Audio button from the main library; move optional preparation to Settings. Sync still converts audio automatically.
+- Include pending collection arrangements in normal Sync, with a collection-only Sync option when no audio is selected. Keep Sync Collections for copying all needed member audio.
+- Show pending/synced collection arrangement status and explain ejecting/leaving USB-storage mode to load player changes.
+- Keep controls and quit/eject protection active across the audio and collection stages; cancellation and partial-success messages preserve already completed audio transfers.
+- Show Checking player folders during the initial device safety checks, and retain diagnostic logs and transfer progress.
+
 # 4.4.4
 
 - Batch archive track pictures into one extraction, avoiding repeated solid-7z decompression when details opens. Audio remains deferred until preview.

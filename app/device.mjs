@@ -79,8 +79,8 @@ export class Device {
       }
     }
   }
-  async saveGroups(groups,{ownedIds=[],icons=new Map(),expectedDeviceId}={}){
-    const guard=await this.pin(),current=await inspectDevice(this.volume);if(expectedDeviceId&&current.marker.deviceId!==expectedDeviceId)throw new Error('The connected Pocket changed.');
+  async saveGroups(groups,{ownedIds=[],icons=new Map(),expectedDeviceId,cancelled=()=>false}={}){
+    const pinned=await this.pin(),guard=async()=>{if(cancelled())throw new Error('Sync cancelled before collection changes were confirmed.');await pinned();},current=await inspectDevice(this.volume);await guard();if(expectedDeviceId&&current.marker.deviceId!==expectedDeviceId)throw new Error('The connected Pocket changed.');
     let prior=[];const file=path.join(this.root,'groups.json');
     try{const st=await fs.lstat(file);if(st.isSymbolicLink()||st.size>4*1024**2)throw new Error('Unsafe group metadata.');prior=validateGroups(JSON.parse(await fs.readFile(file,'utf8'))).groups;}catch(error){if(error.code!=='ENOENT')throw error;}
     const owned=new Set(ownedIds),assigned=new Set(groups.flatMap(g=>g.playlists));
@@ -97,6 +97,7 @@ export class Device {
     }finally{for(const temp of iconParts)await fs.rm(temp,{force:true}).catch(()=>{});await fs.rm(part,{force:true}).catch(()=>{});if(locked)await fs.rm(lock,{force:true}).catch(()=>{});}
   }
   async execute({send=[],remove=[],onProgress=()=>{},cancelled=()=>false,expectedDeviceId}){
+    onProgress({phase:'verify',label:'Checking player folders…'});
     const guard=await this.pin();const current=await inspectDevice(this.volume);
     if(expectedDeviceId&&current.marker?.deviceId!==expectedDeviceId)throw new Error('The connected player changed. Refresh and try again.');
     const assert=async()=>{if(cancelled())throw new Error('Transfer cancelled. Re-sync to finish any interrupted update.');await guard();};

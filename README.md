@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.4.4](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.4/Pocket-Drop-4.4.4-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.4](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.4/Pocket-Drop-4.4.4-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.4.5](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.5/Pocket-Drop-4.4.5-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.5](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.5/Pocket-Drop-4.4.5-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
@@ -56,7 +56,7 @@ Use **Read from Pocket** to bring existing groups into this app. Local membershi
 
 ## Prepare and sync
 
-Use **Prepare audio** (shown only for items needing conversion) to convert/cache audio before plugging in Pocket. Preparation runs on the Mac; navigation, history and ejection remain available. Its progress shows the file/count and elapsed time. Estimates begin after completed conversions provide timing samples; long files can make an estimate need updating. Cancel preparation independently of a device transfer.
+In Settings, use **Prepare audio** (shown only for items needing conversion) to convert/cache audio before plugging in Pocket. Preparation runs on the Mac; navigation, history and ejection remain available. Its progress shows the file/count and elapsed time. Estimates begin after completed conversions provide timing samples; long files can make an estimate need updating. Cancel preparation independently of a device transfer.
 
 MP3 and AAC in M4A/M4B/AAC are supported. Ogg Vorbis and Ogg Opus (including .ogg files) are converted to AAC-LC on Sync or Prepare using a streaming WASM decoder and macOS afconvert (96 kb/s mono, 192 kb/s stereo). Prepared audio is cached and verified before reuse. Getting AAC directly avoids another lossy encoding step. Other recognized audio types receive an unsupported-format message instead of being silently skipped. Source audio, encryption, file-count, file-size and extraction protections still apply: up to 500 tracks per item in the player format, 20,000 archive entries, 4 GB per file and 12 GB per imported item.
 
@@ -120,3 +120,11 @@ Browser checks need Playwright's Chromium. Linux native Electron checks need an 
 Length beside Size shows measured audio duration and can be sorted. Existing Pocket manifests and prepared audio provide durations immediately. Unknown local items are measured one at a time in the background and cached by source fingerprint; the library and editor do not wait for this. A dash means the length is not available yet. Foreground transfers, preparation and editing pause this discovery. Excluded tracks are removed from the displayed total. Refresh does not reread unchanged audio.
 
 If an existing book’s library record (manifest.json) is missing on Pocket, keep its original in the Inbox and sync that book again. Pocket Drop regenerates the record and verifies the copy; this does not require the optional tracks.txt or card.txt download files. Diagnostics and transfer progress from the previous stability update are retained.
+
+## Syncing collection changes
+
+The main Audio Library has no collection dropdown or Prepare Audio button. Sync handles needed audio conversion automatically; optional offline preparation is in Settings.
+
+Normal **Sync** now includes pending collection changes, and is available for collection-only changes even when no audio is selected. It copies the selected audio and the collection arrangement. **Sync Collections** on the Collections page additionally copies any missing member audio. Creating or editing a collection saves it locally until you click one of these Sync buttons. Pending/synced status is displayed on that page.
+
+After syncing, eject Pocket and leave USB-storage mode so the player can reload its library. The inspected open-source player hides empty collections and collections with no available member audio. It must support the groups format; no player firmware is changed by Pocket Drop.
