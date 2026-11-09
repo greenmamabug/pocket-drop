@@ -146,3 +146,5 @@ svg,[data-icon]{overflow:visible}
 .table-panel td.length{padding-left:8px;padding-right:8px}
 
 .library-actions:not(:has(> :not([hidden]))){display:none}
+
+.track-name .track-metrics{color:#6f577e;font-variant-numeric:tabular-nums;margin-top:3px;line-height:1.4}.track-name small{overflow-wrap:anywhere}

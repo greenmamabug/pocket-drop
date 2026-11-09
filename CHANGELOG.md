@@ -1,3 +1,11 @@
+# 4.4.6
+
+- Remove Tags controls and tag text from library rows while preserving existing saved/source data.
+- Show track length and original file size in the audio details editor. Use cached measurements immediately and fill missing lengths asynchronously without blocking editing.
+- Persist prepared/synced durations by original source key, including converted Ogg/Opus and M4B tracks.
+- Cancel editor extraction on close and clean up background work before quitting; preserve destroyed-window safeguards.
+- Check temporary space against the selected extraction output, so thumbnail requests do not require disk space for the entire audiobook.
+
 # 4.4.5
 
 - Remove the collection dropdown and Prepare Audio button from the main library; move optional preparation to Settings. Sync still converts audio automatically.

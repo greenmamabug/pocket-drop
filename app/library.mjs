@@ -11,7 +11,7 @@ import {FileEstimate} from './progress-estimate.mjs';
 import {describeProblem} from './problems.mjs';
 import {revision} from './catalog.mjs';
 import {collectionsPending} from './collection-state.mjs';
-import {durationFromManifest} from './duration-index.mjs';
+import {preparedDurations,durationFromManifest} from './duration-index.mjs';
 import { Device } from './device.mjs';
 export function friendly(error){
   const msg=error?.message??String(error);
@@ -139,7 +139,7 @@ export class Library extends EventEmitter{
         if(kind==='remove'){
           const items=selected.filter(r=>r.local&&result.removed.includes(r.id)).map(r=>({key:r.key,id:r.id,title:r.title,fp:this.cache.get(path.join(this.inbox,r.source))?.fp,revision:revision(this.catalog.get(r.key).edits)}));
           this.catalog.data.undo={deviceId:expectedDeviceId,items};await this.catalog.save();
-        }else for(const row of selected)if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{syncedRevision:revision(this.catalog.get(row.key).edits),syncedFingerprint:this.cache.get(path.join(this.inbox,row.source))?.fp,prepared:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,editRevision:revision(this.catalog.get(row.key).edits),bytes:row.preparedBytes,durationMs:row.durationMs,convertedKeys:this.catalog.get(row.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??row.opusKeys??[]}});
+        }else for(const [i,row] of selected.entries())if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{durations:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,...preparedDurations(prepared[i],this.catalog.get(row.key).durations?.fp===this.cache.get(path.join(this.inbox,row.source))?.fp?this.catalog.get(row.key).durations.tracks:{})},syncedRevision:revision(this.catalog.get(row.key).edits),syncedFingerprint:this.cache.get(path.join(this.inbox,row.source))?.fp,prepared:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,editRevision:revision(this.catalog.get(row.key).edits),bytes:row.preparedBytes,durationMs:row.durationMs,convertedKeys:this.catalog.get(row.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??row.opusKeys??[]}});
       }
       this.lastResult={...transferResult(selected,result,kind,{titles:new Map(this.rows.map(r=>[r.id,r.title]))}),id:randomUUID()};for(const row of selected){row.onDevice=kind!=='remove';row.status=kind==='remove'?'ready':'current';}
       completed=true;

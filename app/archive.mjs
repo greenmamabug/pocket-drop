@@ -95,8 +95,9 @@ export async function openArchive(source) {
       const root=await fs.mkdtemp(path.join(os.tmpdir(),'pocket-drop-'));
       const cleanup=()=>fs.rm(root,{recursive:true,force:true});
       try {
-        const free=await fs.statfs(root);if(total+256*1024**2>free.bavail*free.bsize)throw new Error('Not enough temporary disk space to process this ZIP.');
-        for(const e of files.filter(e=>!selected||selected.includes(e.name))){const out=path.join(root,e.name);await fs.mkdir(path.dirname(out),{recursive:true});await pipeline(await stream(e),verifiedStream(e.entry),createWriteStream(out,{flags:'wx'}),{signal});}
+        const selectedFiles=files.filter(e=>!selected||selected.includes(e.name)),needed=selectedFiles.reduce((n,e)=>n+e.size,0);
+        const free=await fs.statfs(root);if(needed+256*1024**2>free.bavail*free.bsize)throw new Error('Not enough temporary disk space to process this ZIP.');
+        for(const e of selectedFiles){const out=path.join(root,e.name);await fs.mkdir(path.dirname(out),{recursive:true});await pipeline(await stream(e),verifiedStream(e.entry),createWriteStream(out,{flags:'wx'}),{signal});}
         return {root,cleanup};
       } catch(err){await cleanup();throw err;}
     }};

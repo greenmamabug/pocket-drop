@@ -70,12 +70,12 @@ export async function openSevenZip(source, {safeName, visible, tree, limits}) {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pocket-drop-7z-'));
       const cleanup = () => fs.rm(root, {recursive: true, force: true});
       try {
+        const expected=files.filter(f=>!selected||selected.includes(f.name));
         const free = await fs.statfs(root);
-        if (total + 256 * 1024 ** 2 > Number(free.bavail) * Number(free.bsize)) throw new Error('Not enough temporary disk space to process this 7z archive.');
+        if (expected.reduce((n,f)=>n+f.size,0) + 256 * 1024 ** 2 > Number(free.bavail) * Number(free.bsize)) throw new Error('Not enough temporary disk space to process this 7z archive.');
         if(selected?.some(name=>!files.some(f=>f.name===name)))throw new Error('Unknown archive entry.');
         await run(['x', '-y', '-bd', '-bb0', '-mmt=2', '-spd', '-p-', `-o${root}`, '--', source,...(selected??[])],16*1024**2,signal);
         const actual = await tree(root);
-        const expected=files.filter(f=>!selected||selected.includes(f.name));
         if (actual.length !== expected.length || actual.some(e => !expected.some(f => f.name === e.name && f.size === e.size))) throw new Error('Extracted 7z contents do not match the archive listing.');
         return {root, cleanup};
       } catch (error) { await cleanup(); throw error; }

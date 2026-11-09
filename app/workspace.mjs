@@ -4,7 +4,7 @@ import {createReadStream} from 'node:fs';
 import {createHash,randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {collectionsPending,collectionRevision} from './collection-state.mjs';
-import {DurationIndex} from './duration-index.mjs';
+import {preparedDurations,DurationIndex} from './duration-index.mjs';
 import {FileEstimate} from './progress-estimate.mjs';
 import {Editor,trackDocument} from './editor.mjs';
 import {fingerprint,prepare,contentKey} from './archive.mjs';
@@ -33,7 +33,7 @@ export class Workspace{
     prepared.playlist.manifest.tracks=prepared.playlist.tracks.map(t=>t.entry);
     if(edits.coverRef){prepared.playlist.coverPath=await this.renderCover(edits.coverRef,edits);prepared.playlist.manifest.cover='cover.png';}
   }
-  async open(key){if(this.library.busy||this.syncingCollections)throw new Error('Wait for the current device operation.');this.openingDetails=true;this.durations.pause();try{const row=this.row(key);return await this.editor.open(row,this.source(row),(()=>{const entry=this.library.cache.get(this.source(row));return entry?.info?{...entry.info,sourceFingerprint:entry.fp}:null;})());}finally{this.openingDetails=false;this.durations.schedule();}}
+  async open(key){if(this.library.busy||this.syncingCollections)throw new Error('Wait for the current device operation.');this.openingDetails=true;this.durations.pause();try{const row=this.row(key);return await this.editor.open(row,this.source(row),(()=>{const entry=this.library.cache.get(this.source(row));return entry?.info?{...entry.info,sourceFingerprint:entry.fp}:null;})(),this.library.cache.get(this.source(row))?.manifest);}finally{this.openingDetails=false;this.durations.schedule();}}
   async save(id,input){if(this.library.busy||this.preparingTask||this.syncingCollections)throw new Error('Finish or cancel the current operation before saving edits.');const result=await this.editor.save(id,input);const session=this.editor.session(id);if(!result.coverRef)await this.catalog.set(session.rowKey,{coverData:null});const cached=this.library.cache.get(session.source);if(cached){delete cached.row.content;delete cached.row.preparedBytes;delete cached.manifest;}
     await this.library.scan(true);return result;
   }
@@ -51,7 +51,7 @@ export class Workspace{
         if(cancelled)throw new Error('Audio preparation cancelled.');const row=rows[i],source=this.source(row),fp=await fingerprint(source),saved=this.catalog.get(row.key),editRevision=revision(saved.edits);
         progress({phase:'Preparing '+row.title,percent:Math.round(i/rows.length*100)});
         const p=await prepare(source,{...this.library.conversionOptions,convertOpus:this.library.convertOpus,conversionCache:this.library.conversionCache,editPlan:saved.edits,signal:abort.signal,cancelled:()=>cancelled,onConversion:e=>{estimate.update(row.key+':'+e.index,e.phase);progress({phase:e.phase==='Using converted audio'?'Using prepared AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC',file:e.file,fileIndex:e.index,fileTotal:e.total,percent:Math.round((i+e.percent)/rows.length*100)});}});
-        try{await this.apply(p,row);if(await fingerprint(source)!==fp||revision(this.catalog.get(row.key).edits)!==editRevision)throw new Error('Source or edits changed during preparation. Try again.');const bytes=p.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0);await this.catalog.set(row.key,{prepared:{fp,editRevision,bytes,durationMs:p.playlist.manifest.tracks.reduce((n,t)=>n+t.durationMs,0),convertedKeys:saved.edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??p.info.opusFiles},searchTracks:p.playlist.tracks.map(t=>t.entry.title)});const cached=this.library.cache.get(source);if(cached)cached.row.preparedBytes=bytes;}
+        try{await this.apply(p,row);if(await fingerprint(source)!==fp||revision(this.catalog.get(row.key).edits)!==editRevision)throw new Error('Source or edits changed during preparation. Try again.');const bytes=p.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0);await this.catalog.set(row.key,{durations:{fp,...preparedDurations(p,saved.durations?.fp===fp?saved.durations.tracks:{})},prepared:{fp,editRevision,bytes,durationMs:p.playlist.manifest.tracks.reduce((n,t)=>n+t.durationMs,0),convertedKeys:saved.edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??p.info.opusFiles},searchTracks:p.playlist.tracks.map(t=>t.entry.title)});const cached=this.library.cache.get(source);if(cached)cached.row.preparedBytes=bytes;}
         finally{await p.cleanup();}
       }
       progress({running:false,phase:'Audio is ready to sync',percent:100,file:null});this.notify('Audio preparation finished',`${rows.length} audio item${rows.length===1?' is':'s are'} ready.`);await this.library.log('Audio preparation finished. '+rows.length+' item(s) ready.','success');
@@ -106,7 +106,7 @@ export class Workspace{
   duplicateCandidates(){const groups=new Map();for(const row of this.library.rows.filter(r=>r.local&&!r.hidden&&r.id&&!['error','downloading','checking'].includes(r.status))){if(!groups.has(row.id))groups.set(row.id,[]);groups.get(row.id).push(row);}return[...groups.values()].filter(rows=>rows.length>1&&rows.length<=20);}
   duplicatePublish(value){this.library.duplicates=value;this.publishingDuplicates=true;try{this.library.publish();}finally{this.publishingDuplicates=false;}}
   scheduleDuplicates(){
-    clearTimeout(this.duplicateTimer);
+    clearTimeout(this.duplicateTimer);if(this.closed)return;
     if(this.library.busy||this.syncingCollections||this.preparingTask||this.library.preparation?.running){this.duplicateAbort?.abort();return;}
     if(this.duplicateTask||this.library.refreshing||this.library.scanning)return;
     const candidates=this.duplicateCandidates(),signature=revision(candidates.map(rows=>rows.map(r=>[r.key,r.sourceFingerprint,revision(this.catalog.get(r.key).edits)])));
@@ -131,5 +131,5 @@ export class Workspace{
     }
     check();await this.catalog.save();return{items:records.map(r=>({...r,comparison:(r.orderHash===records[0].orderHash?'Identical audio in the same order':r.audioHash===records[0].audioHash?'Same audio files, different order':'Different audio or edition')+(r.editRevision!==records[0].editRevision||r.metadataRevision!==records[0].metadataRevision?' · names, icons, or saved edits differ':'')}))};
   }
-  async close(){await this.durations.close();clearTimeout(this.duplicateTimer);this.duplicateAbort?.abort();await this.duplicateTask;await this.editor.closeAll();}
+  async close(){this.closed=true;clearTimeout(this.duplicateTimer);this.duplicateAbort?.abort();this.editor.cancelAllMetrics();const results=await Promise.allSettled([this.durations.close(),this.duplicateTask,this.editor.closeAll()]);const failed=results.find(r=>r.status==='rejected');if(failed)throw failed.reason;}
 }

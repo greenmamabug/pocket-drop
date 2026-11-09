@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.4.5](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.5/Pocket-Drop-4.4.5-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.5](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.5/Pocket-Drop-4.4.5-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.4.6](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.6/Pocket-Drop-4.4.6-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.6](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.6/Pocket-Drop-4.4.6-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
@@ -42,7 +42,7 @@ Track-list and card-detail files are optional. Complete MYO metadata supplies ti
 - Delete a track from the edited version, or Restore it. At least one track must remain.
 - Listen with the audio preview and seek to check a track.
 - Choose cover artwork, Fit the whole image or Fill the card proportions, and adjust vertical framing.
-- Add comma-separated tags. Library search includes track titles and tags.
+- View each track’s measured length and original file size. Missing lengths fill in without blocking the editor.
 
 Click **Save changes** to retain these choices across Refresh and restarts. Edits are stored in the app's support folder; Inbox originals are kept. Audio item identity stays stable when you rename it, so a later sync updates the existing player item. For edited audio already on Pocket, choose **Sync changes** in All Audio. The On Pocket tab retains its removal controls.
 
@@ -50,7 +50,7 @@ For extracted folders only, **Move excluded originals to Trash** is a separate c
 
 ## Collections
 
-The Collections area arranges items into player-compatible groups. Create, rename, reorder or delete collections and order their members. Each audio item belongs to one player collection; tags can span multiple subjects. You can create up to 30 collections with names up to 40 characters.
+The Collections area arranges items into player-compatible groups. Create, rename, reorder or delete collections and order their members. Each audio item belongs to one player collection. You can create up to 30 collections with names up to 40 characters.
 
 Use **Read from Pocket** to bring existing groups into this app. Local membership takes precedence when merging imports. **Sync Collections** confirms the change and writes the open-source groups format atomically. It preserves other groups and listening history. Items assigned here move out of other player groups; missing or edited member audio is synced before the collection arrangement. Choose a custom collection picture, displayed in a circular frame. Group display depends on player software that supports groups. Collection deletion keeps audio in the library and on the player; sync collections to update the player's group list.
 
@@ -128,3 +128,7 @@ The main Audio Library has no collection dropdown or Prepare Audio button. Sync 
 Normal **Sync** now includes pending collection changes, and is available for collection-only changes even when no audio is selected. It copies the selected audio and the collection arrangement. **Sync Collections** on the Collections page additionally copies any missing member audio. Creating or editing a collection saves it locally until you click one of these Sync buttons. Pending/synced status is displayed on that page.
 
 After syncing, eject Pocket and leave USB-storage mode so the player can reload its library. The inspected open-source player hides empty collections and collections with no available member audio. It must support the groups format; no player firmware is changed by Pocket Drop.
+
+## Track details
+
+The editor has no Tags controls. Each track shows its measured length and original file size under the filename. Sizes are available without extracting audio; previously measured lengths appear immediately. Other lengths fill in asynchronously while editing remains available. Closing details cancels archive extraction for its metrics. Prepared/synced audio retains durations by original track key so reordering and reopening do not require another probe. Saving keeps any pre-existing tag data; removing the UI does not delete original metadata.

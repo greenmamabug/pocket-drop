@@ -12,11 +12,11 @@ import {renameOnboard,validVolumeUUID} from './volumes.mjs';
 import {ejectPocket} from './eject.mjs';
 import {Library,friendly} from './library.mjs';
 import {Catalog} from './catalog.mjs';
-import {liveWindow,showWindow,preventBusyQuit} from './window-lifecycle.mjs';
+import {liveWindow,showWindow,preventBusyQuit,createQuitCleanup} from './window-lifecycle.mjs';
 import {installStudio} from './studio-ipc.mjs';
 protocol.registerSchemesAsPrivileged([{scheme:'pocket-media',privileges:{standard:true,secure:true,supportFetchAPI:true,stream:true,corsEnabled:true}}]);
 const here=path.dirname(fileURLToPath(import.meta.url));
-let win,library,config,configFile,watcher,timer,scanTimer;
+let win,library,workspace,config,configFile,watcher,timer,scanTimer;
 let record=()=>{};
 if(!app.requestSingleInstanceLock())app.quit();
 else {
@@ -28,7 +28,7 @@ app.whenReady().then(async()=>{
   record('startup',{version:app.getVersion(),arch:process.arch});process.on('uncaughtExceptionMonitor',error=>record('uncaught-exception',error));app.on('render-process-gone',(_event,_contents,details)=>record('renderer-gone',details));app.on('child-process-gone',(_event,details)=>record('child-gone',details));
   config={inbox:path.join(app.getPath('downloads'),'Pocket Drop Inbox'),autoRefresh:true,refreshSeconds:30,libraryTextSize:18,appTextSize:14,titleColumnWidth:280,openOnConnect:false,pocketName:'MYO Pocket',completionNotifications:false,updateRepository:'greenmamabug/pocket-drop'};
   try{const saved=JSON.parse(await fs.readFile(configFile,'utf8'));if(typeof saved.inbox==='string'&&path.isAbsolute(saved.inbox))config.inbox=saved.inbox;if(typeof saved.autoRefresh==='boolean')config.autoRefresh=saved.autoRefresh;if([15,30,60,300].includes(saved.refreshSeconds))config.refreshSeconds=saved.refreshSeconds;if([16,18,20,22].includes(saved.libraryTextSize))config.libraryTextSize=saved.libraryTextSize;if([14,16,18,20].includes(saved.appTextSize))config.appTextSize=saved.appTextSize;if(Number.isInteger(saved.titleColumnWidth)&&saved.titleColumnWidth>=220&&saved.titleColumnWidth<=420&&saved.titleColumnWidth%20===0)config.titleColumnWidth=saved.titleColumnWidth;if(typeof saved.pocketName==='string'&&saved.pocketName.trim().length>0&&saved.pocketName.trim().length<=40&&!/[\x00-\x1f\x7f]/.test(saved.pocketName))config.pocketName=saved.pocketName.trim();if(typeof saved.openOnConnect==='boolean')config.openOnConnect=saved.openOnConnect;if(typeof saved.completionNotifications==='boolean')config.completionNotifications=saved.completionNotifications;if(typeof saved.updateRepository==='string'&&/^(?:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?$/.test(saved.updateRepository))config.updateRepository=saved.updateRepository;if(validVolumeUUID(saved.volumeUUID))config.volumeUUID=saved.volumeUUID;}catch{}
-  const catalog=await new Catalog(path.join(support,'studio')).load();let workspace;
+  const catalog=await new Catalog(path.join(support,'studio')).load();
   library=new Library({catalog,inbox:config.inbox,device:new Device(undefined,undefined,{volumeUUID:config.volumeUUID}),stateFile:path.join(support,'activity.json'),cacheFile:path.join(support,'library-cache-v5.json'),convertOpus:true,conversionCache:path.join(support,'converted-aac-v1'),conversionOptions:{onTiming:event=>record('audio-conversion',event),normalizeIcon:async(input,output)=>{const image=nativeImage.createFromPath(input);if(image.isEmpty())throw new Error('Cannot read track icon: '+path.basename(input));const size=image.getSize();if(size.width*size.height>50_000_000)throw new Error('Track icon has too many pixels.');await fs.writeFile(output,image.resize({width:16,height:16,quality:'best'}).toPNG());}},thumbnail:async data=>{try{const image=nativeImage.createFromDataURL(data);if(image.isEmpty())return null;return image.resize({height:160,quality:'good'}).toDataURL();}catch{return null;}}});await library.restore();
   const login=process.platform==='darwin'?app.getLoginItemSettings():{};const backgroundStart=config.openOnConnect&&login.wasOpenedAtLogin;
   win=new BrowserWindow({show:!backgroundStart,width:1080,height:820,minWidth:960,minHeight:650,title:'Pocket Drop',backgroundColor:'#fcfbfe',icon:path.join(here,'../assets/icon.png'),titleBarStyle:'hiddenInset',trafficLightPosition:{x:20,y:20},webPreferences:{preload:path.join(here,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
@@ -94,5 +94,6 @@ app.whenReady().then(async()=>{
   win.on('close',e=>{if(!quitting&&config.openOnConnect&&!library.busy&&!library.compositeSync){e.preventDefault();win.hide();app.dock?.hide();return;}if(library.busy||library.compositeSync||library.preparation?.running){e.preventDefault();dialog.showMessageBox(win,{type:'info',message:library.preparation?.running?'Audio preparation is in progress.':'A device operation is in progress.',detail:'Wait for it to finish, or cancel the operation before closing.',buttons:['OK']});}});
   app.on('activate',()=>{showWindow(win);app.dock?.show();});
 }).catch(error=>{record('startup-error',error);dialog.showErrorBox('Pocket Drop could not start',friendly(error));app.quit();});
-app.on('window-all-closed',()=>{if(!library?.busy&&!library?.compositeSync&&!library?.preparation?.running)app.quit();});app.on('before-quit',e=>{if(preventBusyQuit(e,library,win))return;watcher?.close();clearInterval(timer);});
+const cleanupQuit=createQuitCleanup({close:async()=>{watcher?.close();clearInterval(timer);clearTimeout(scanTimer);await Promise.all([library?.stopScan(),workspace?.close()]);},quit:()=>app.quit(),report:error=>record('quit-cleanup-error',error)});
+app.on('window-all-closed',()=>{if(!library?.busy&&!library?.compositeSync&&!library?.preparation?.running)app.quit();});app.on('before-quit',e=>{if(preventBusyQuit(e,library,win))return;if(workspace&&cleanupQuit(e))return;watcher?.close();clearInterval(timer);clearTimeout(scanTimer);});
 }

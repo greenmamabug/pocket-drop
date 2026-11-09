@@ -26,7 +26,8 @@ export async function installStudio({app,win,library,catalog,config,save,handle,
   protocol.handle('pocket-media',async request=>{try{const url=new URL(request.url);if(url.hostname!=='preview')return new Response(null,{status:404});const file=await workspace.editor.mediaFile(url.pathname.slice(1));return file?mediaResponse(file,request):new Response(null,{status:404});}catch{return new Response(null,{status:404});}});
   let lastResult=null;library.on('change',()=>{const result=library.lastResult;if(result?.id&&result.id!==lastResult&&!library.busy&&!workspace.syncingCollections){lastResult=result.id;notify(result.tone==='error'?'Pocket Drop needs attention':result.kind==='remove'?'Removal finished':'Sync finished',result.message);}});
   handle('openEditor',key=>workspace.open(key));
-  handle('closeEditor',async id=>{await workspace.editor.close(id);workspace.durations.schedule();});
+  handle('editorMetrics',id=>workspace.editor.metrics(id));
+  handle('closeEditor',async id=>{await workspace.editor.close(id);library.rows=library.rows.map(row=>catalog.decorate(row));library.publish();workspace.durations.schedule();});
   handle('saveEditor',async(id,input)=>{await workspace.save(id,input);const item=catalog.get(workspace.editor.session(id).rowKey);if(item.edits.coverRef){const file=await renderCover(item.edits.coverRef,item.edits),image=nativeImage.createFromPath(file);await catalog.set(workspace.editor.session(id).rowKey,{coverData:image.resize({height:160,quality:'best'}).toDataURL()});await library.scan(true);}return{saved:true};});
   handle('pickArtwork',async(id,kind)=>{
     idle();const session=workspace.editor.session(id);if(!['cover','icon'].includes(kind))throw new Error('Choose cover or track icon.');
