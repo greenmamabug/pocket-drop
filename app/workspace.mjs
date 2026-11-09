@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
+import {DurationIndex} from './duration-index.mjs';
 import {FileEstimate} from './progress-estimate.mjs';
 import {Editor,trackDocument} from './editor.mjs';
 import {fingerprint,prepare,contentKey} from './archive.mjs';
@@ -15,6 +16,7 @@ export class Workspace{
     this.library=library;this.catalog=catalog;this.editor=new Editor(catalog);this.renderCover=renderCover;this.notify=notify;
     library.transformPrepared=(prepared,row)=>this.apply(prepared,row);
     library.on('change',()=>{if(!this.publishingDuplicates)this.scheduleDuplicates();});
+    this.durations=new DurationIndex(library,catalog,{canWork:()=>!this.preparingTask&&!this.duplicateTask&&!this.openingDetails&&!this.editor.sessions.size});
   }
   row(key){const row=this.library.rows.find(r=>r.key===key);if(!row)throw new Error('This audio item is no longer in the library. Refresh and try again.');return row;}
   source(row){if(!row.local)throw new Error('Add the original to your Inbox to edit or prepare this audio item.');return path.join(this.library.inbox,row.source);}
@@ -30,7 +32,7 @@ export class Workspace{
     prepared.playlist.manifest.tracks=prepared.playlist.tracks.map(t=>t.entry);
     if(edits.coverRef){prepared.playlist.coverPath=await this.renderCover(edits.coverRef,edits);prepared.playlist.manifest.cover='cover.png';}
   }
-  async open(key){if(this.library.busy)throw new Error('Wait for the current device operation.');const row=this.row(key);return this.editor.open(row,this.source(row),(()=>{const entry=this.library.cache.get(this.source(row));return entry?.info?{...entry.info,sourceFingerprint:entry.fp}:null;})());}
+  async open(key){if(this.library.busy)throw new Error('Wait for the current device operation.');this.openingDetails=true;this.durations.pause();try{const row=this.row(key);return await this.editor.open(row,this.source(row),(()=>{const entry=this.library.cache.get(this.source(row));return entry?.info?{...entry.info,sourceFingerprint:entry.fp}:null;})());}finally{this.openingDetails=false;this.durations.schedule();}}
   async save(id,input){if(this.library.busy||this.preparingTask)throw new Error('Finish or cancel the current operation before saving edits.');const result=await this.editor.save(id,input);const session=this.editor.session(id);if(!result.coverRef)await this.catalog.set(session.rowKey,{coverData:null});const cached=this.library.cache.get(session.source);if(cached){delete cached.row.content;delete cached.row.preparedBytes;delete cached.manifest;}
     await this.library.scan(true);return result;
   }
@@ -48,7 +50,7 @@ export class Workspace{
         if(cancelled)throw new Error('Audio preparation cancelled.');const row=rows[i],source=this.source(row),fp=await fingerprint(source),saved=this.catalog.get(row.key),editRevision=revision(saved.edits);
         progress({phase:'Preparing '+row.title,percent:Math.round(i/rows.length*100)});
         const p=await prepare(source,{...this.library.conversionOptions,convertOpus:this.library.convertOpus,conversionCache:this.library.conversionCache,editPlan:saved.edits,signal:abort.signal,cancelled:()=>cancelled,onConversion:e=>{estimate.update(row.key+':'+e.index,e.phase);progress({phase:e.phase==='Using converted audio'?'Using prepared AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC',file:e.file,fileIndex:e.index,fileTotal:e.total,percent:Math.round((i+e.percent)/rows.length*100)});}});
-        try{await this.apply(p,row);if(await fingerprint(source)!==fp||revision(this.catalog.get(row.key).edits)!==editRevision)throw new Error('Source or edits changed during preparation. Try again.');const bytes=p.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0);await this.catalog.set(row.key,{prepared:{fp,editRevision,bytes,convertedKeys:saved.edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??p.info.opusFiles},searchTracks:p.playlist.tracks.map(t=>t.entry.title)});const cached=this.library.cache.get(source);if(cached)cached.row.preparedBytes=bytes;}
+        try{await this.apply(p,row);if(await fingerprint(source)!==fp||revision(this.catalog.get(row.key).edits)!==editRevision)throw new Error('Source or edits changed during preparation. Try again.');const bytes=p.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0);await this.catalog.set(row.key,{prepared:{fp,editRevision,bytes,durationMs:p.playlist.manifest.tracks.reduce((n,t)=>n+t.durationMs,0),convertedKeys:saved.edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??p.info.opusFiles},searchTracks:p.playlist.tracks.map(t=>t.entry.title)});const cached=this.library.cache.get(source);if(cached)cached.row.preparedBytes=bytes;}
         finally{await p.cleanup();}
       }
       progress({running:false,phase:'Audio is ready to sync',percent:100,file:null});this.notify('Audio preparation finished',`${rows.length} audio item${rows.length===1?' is':'s are'} ready.`);await this.library.log('Audio preparation finished. '+rows.length+' item(s) ready.','success');
@@ -106,5 +108,5 @@ export class Workspace{
     }
     check();await this.catalog.save();return{items:records.map(r=>({...r,comparison:(r.orderHash===records[0].orderHash?'Identical audio in the same order':r.audioHash===records[0].audioHash?'Same audio files, different order':'Different audio or edition')+(r.editRevision!==records[0].editRevision||r.metadataRevision!==records[0].metadataRevision?' · names, icons, or saved edits differ':'')}))};
   }
-  async close(){clearTimeout(this.duplicateTimer);this.duplicateAbort?.abort();await this.duplicateTask;await this.editor.closeAll();}
+  async close(){await this.durations.close();clearTimeout(this.duplicateTimer);this.duplicateAbort?.abort();await this.duplicateTask;await this.editor.closeAll();}
 }

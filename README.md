@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.4.2](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.2/Pocket-Drop-4.4.2-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.2](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.2/Pocket-Drop-4.4.2-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.4.3](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.3/Pocket-Drop-4.4.3-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.3](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.3/Pocket-Drop-4.4.3-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
@@ -114,3 +114,9 @@ Browser checks need Playwright's Chromium. Linux native Electron checks need an 
 [TEST-RESULTS.md](TEST-RESULTS.md) records actual checks. Node tests use real audio fixtures and simulated player filesystems. Browser and real Linux Electron checks cover UI/IPC, preview seeking and native image processing. Mac CI additionally checks native AAC encoding and the editor. These tests do not establish USB ejection/rename, notifications, Gatekeeper or player hardware compatibility. The user has reported earlier Intel versions work on their Mac. User-provided large audiobook archives exceeded the chat attachment transfer limit and were not inspected.
 
 [CHANGELOG.md](CHANGELOG.md) describes this release's features. Preserve the GPL licence, notices and corresponding source when redistributing. Studio Pocket Desktop's proprietary code is not included; the app uses its openly licensed engine and library format.
+
+## Audio length
+
+Length beside Size shows measured audio duration and can be sorted. Existing Pocket manifests and prepared audio provide durations immediately. Unknown local items are measured one at a time in the background and cached by source fingerprint; the library and editor do not wait for this. A dash means the length is not available yet. Foreground transfers, preparation and editing pause this discovery. Excluded tracks are removed from the displayed total. Refresh does not reread unchanged audio.
+
+If an existing book’s library record (manifest.json) is missing on Pocket, keep its original in the Inbox and sync that book again. Pocket Drop regenerates the record and verifies the copy; this does not require the optional tracks.txt or card.txt download files. Diagnostics and transfer progress from the previous stability update are retained.

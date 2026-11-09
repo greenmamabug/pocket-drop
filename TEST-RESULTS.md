@@ -116,3 +116,7 @@ Numbered-layout follow-up: the full suite passed 66 tests, including extracted f
 ## 4.4.2 refresh and cancellation follow-up
 
 78 application tests pass. New regression tests verify that an automatic metadata refresh does not abort a long duplicate comparison, device operations do pause it, unchanged device manifests are reused by index checksum, manual refresh rereads them, and each refresh inspects the device only once. The current desktop smoke test and editor check pass on Linux. Mac release CI repeats native encoder/editor and signature verification for the final version.
+
+## 4.4.3 book length and incomplete-player warning
+
+82 application tests pass, including measured folder/ZIP lengths, persistence, excluded-track totals, foreground pause behavior, source preservation, and resync of a missing manifest while preserving another book and listening position. Browser checks verify Length display/sorting, Save versus Save and close, persistent opening indicators, and no horizontal overflow at 960px with large text. The actual Electron editor/collection checks pass. Existing crash/large-copy/Ogg/eject regression tests remain passing. Diagnostics and transfer progress are retained; an apparent pause ending is not treated as proof of a completed transfer.

@@ -73,7 +73,7 @@ export class Library extends EventEmitter{
           }
           if(this.stopRequested)return;
           const installed=this.deviceState.check?.playlists.find(p=>p.id===base.id&&p.manifest);
-          base.onDevice=!!installed;base.status=!this.deviceState.connected?'disconnected':installed?'unverified':'ready';
+          base.onDevice=!!installed;if(installed)base.durationMs=installed.manifest.tracks.reduce((n,t)=>n+t.durationMs,0);base.status=!this.deviceState.connected?'disconnected':installed?'unverified':'ready';
           if(installed&&known?.manifest){
             const same=Buffer.from(serializeManifest(installed.manifest)).equals(Buffer.from(serializeManifest(known.manifest)));
             base.status=installed.ok&&same?'current':'update';
@@ -95,7 +95,7 @@ export class Library extends EventEmitter{
       for(const p of this.deviceState.check?.playlists??[]){if(!p.manifest||grouped.some(r=>r.id===p.id&&r.onDevice))continue;
         let cover=null;const file=p.manifest.cover?path.join(this.device.root,'playlists',p.id,p.manifest.cover):null;
         if(file){const s=await fs.lstat(file).catch(()=>null);if(s&&!s.isSymbolicLink()&&s.size<10*1024**2){const b=await fs.readFile(file);const mime=b[0]===137?'image/png':b[0]===255?'image/jpeg':'image/webp';cover=await this.thumbnail(`data:${mime};base64,${b.toString('base64')}`);}}
-        grouped.push({key:'device-'+p.id,id:p.id,title:p.manifest.title,source:'On Pocket only · original not in Inbox',sources:[],local:false,onDevice:true,cover,size:p.manifest.tracks.reduce((n,t)=>n+t.sizeBytes,0),tracks:p.manifest.tracks.length,status:p.ok?'device-only':'error',message:p.ok?'This audiobook is on your player. Add its original ZIP to the Inbox to keep a computer copy.':'The device copy is incomplete. Add the original to your Inbox and sync again.'});
+        grouped.push({key:'device-'+p.id,id:p.id,title:p.manifest.title,source:'On Pocket only · original not in Inbox',sources:[],local:false,onDevice:true,cover,size:p.manifest.tracks.reduce((n,t)=>n+t.sizeBytes,0),durationMs:p.manifest.tracks.reduce((n,t)=>n+t.durationMs,0),tracks:p.manifest.tracks.length,status:p.ok?'device-only':'error',message:p.ok?'This audiobook is on your player. Add its original ZIP to the Inbox to keep a computer copy.':'The device copy is incomplete. Add the original to your Inbox and sync again.'});
       }
       if(this.stopRequested)return;this.rows=grouped.map(row=>this.catalog?this.catalog.decorate(row):row);this.lastProbe=probe;await this.saveCache().catch(()=>{});
     }catch(err){await this.log(friendly(err),'error');}
@@ -122,7 +122,7 @@ export class Library extends EventEmitter{
         const row=selected[i],item=prepared[i];preparingKey=row.key;
         if(item.playlist.manifest.id!==row.id)throw new Error('Audio identity changed. Refresh before syncing.');
         const cached=this.cache.get(path.join(this.inbox,row.source));
-        const imagePaths=new Set([item.playlist.coverPath,item.playlist.iconPath,...item.playlist.tracks.map(t=>t.iconPath)].filter(Boolean));let imageBytes=0;for(const image of imagePaths)imageBytes+=(await fs.stat(image)).size;row.preparedBytes=item.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0)+imageBytes;cached.row.preparedBytes=row.preparedBytes;
+        const imagePaths=new Set([item.playlist.coverPath,item.playlist.iconPath,...item.playlist.tracks.map(t=>t.iconPath)].filter(Boolean));let imageBytes=0;for(const image of imagePaths)imageBytes+=(await fs.stat(image)).size;row.preparedBytes=item.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0)+imageBytes;cached.row.preparedBytes=row.preparedBytes;cached.row.durationMs=item.playlist.manifest.tracks.reduce((n,t)=>n+t.durationMs,0);row.durationMs=cached.row.durationMs;
         row.content=await contentKey(item.playlist);cached.manifest=item.playlist.manifest;cached.row.content=row.content;cached.row.unverified=false;cached.row.tracks=item.playlist.tracks.length;
       }
       this.publish();preparingKey=null;deviceStarted=true;
@@ -137,12 +137,12 @@ export class Library extends EventEmitter{
         if(kind==='remove'){
           const items=selected.filter(r=>r.local&&result.removed.includes(r.id)).map(r=>({key:r.key,id:r.id,title:r.title,fp:this.cache.get(path.join(this.inbox,r.source))?.fp,revision:revision(this.catalog.get(r.key).edits)}));
           this.catalog.data.undo={deviceId:expectedDeviceId,items};await this.catalog.save();
-        }else for(const row of selected)if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{syncedRevision:revision(this.catalog.get(row.key).edits),syncedFingerprint:this.cache.get(path.join(this.inbox,row.source))?.fp,prepared:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,editRevision:revision(this.catalog.get(row.key).edits),bytes:row.preparedBytes,convertedKeys:this.catalog.get(row.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??row.opusKeys??[]}});
+        }else for(const row of selected)if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{syncedRevision:revision(this.catalog.get(row.key).edits),syncedFingerprint:this.cache.get(path.join(this.inbox,row.source))?.fp,prepared:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,editRevision:revision(this.catalog.get(row.key).edits),bytes:row.preparedBytes,durationMs:row.durationMs,convertedKeys:this.catalog.get(row.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??row.opusKeys??[]}});
       }
-      this.lastResult={...transferResult(selected,result,kind),id:randomUUID()};for(const row of selected){row.onDevice=kind!=='remove';row.status=kind==='remove'?'ready':'current';}
+      this.lastResult={...transferResult(selected,result,kind,{titles:new Map(this.rows.map(r=>[r.id,r.title]))}),id:randomUUID()};for(const row of selected){row.onDevice=kind!=='remove';row.status=kind==='remove'?'ready':'current';}
       completed=true;
       for(const row of selected)await this.log(kind==='remove'?`${row.title} removed from Pocket. ${row.local?'Original kept in Inbox.':'No computer copy is in your Inbox.'}`:`${row.title} ${result.written.includes(row.id)?'added to Pocket':'is already up to date'}.`,'success');
-      if(result.skipped.length||result.warnings.length)await this.log('Transfer finished with warnings. '+[...result.warnings,...result.skipped.flatMap(s=>s.problems)].join(' '),'warning');
+      if(result.skipped.length||result.warnings.length)await this.log('Transfer finished with warnings. '+this.lastResult.warnings.join(' '),'warning');
       this.progress={phase:this.lastResult.message,percent:100};
     }catch(err){this.lastResult={id:randomUUID(),kind,problem:describeProblem(err),tone:this.cancelled?'warning':'error',message:this.cancelled?'Sync cancelled':kind==='remove'?'Removal needs attention':'Sync needs attention',details:selected.map(row=>({title:row.title,status:'needs-attention',message:!deviceStarted&&preparingKey!==row.key?'Not transferred. Resolve the issue and try again.':friendly(err)})),warnings:[deviceStarted?'Check Recent Activity before retrying.':'Nothing was written to Pocket.']};await this.log(friendly(err)+(deviceStarted?' The operation may be incomplete; refresh and retry.':' Nothing was written to Pocket.'),'error');this.progress={phase:friendly(err),error:true,percent:0};throw new Error(friendly(err));}
     finally{

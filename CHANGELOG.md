@@ -1,3 +1,11 @@
+# 4.4.3
+
+- Add a sortable Length column beside Size, using measured player/preparation durations and cached background discovery for unknown local audio.
+- Duration discovery runs one item at a time, pauses for foreground work/editing, keeps originals, and adjusts totals for excluded tracks.
+- Explain missing player library records in plain language and tell users to sync the affected item again; use this wording in completion details and Recent Activity.
+- Verify resync repairs a missing manifest without deleting Inbox originals or saved listening position.
+- Retain fast details, Save / Save and close, inline refresh, transfer debugging, progress and crash fixes from the previous release.
+
 # 4.4.2
 
 - Long duplicate comparisons continue through metadata-only automatic refresh and still pause for device operations.

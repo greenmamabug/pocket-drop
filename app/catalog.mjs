@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
+import {cachedDuration} from './duration-index.mjs';
 import {validateGroups} from '@studio-pocket/library-format';
 export const text=(value,max=200)=>{if(typeof value!=='string'||!value.trim()||value.trim().length>max||/[\x00-\x1f\x7f]/.test(value))throw new Error(`Enter text of 1–${max} characters.`);return value.trim();};
 export const revision=value=>createHash('sha256').update(JSON.stringify(value??{})).digest('hex');
@@ -16,6 +17,6 @@ export class Catalog{
     const item=this.get(row.key),visual=item.edits??{},dirty=(!!item.edits&&item.syncedRevision!==revision(item.edits))||(!!item.syncedFingerprint&&item.syncedFingerprint!==row.sourceFingerprint);
     const activeOpus=visual.tracks?visual.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key):row.opusKeys??[];
     const convertedKeys=item.prepared?.fp===row.sourceFingerprint?(item.prepared.convertedKeys??(item.prepared.editRevision===revision(item.edits)?activeOpus:[])):[];
-    return{...row,title:visual.title||row.title,cover:item.coverData||row.cover,hidden:!!item.hidden,tags:item.tags??[],edited:dirty,editRevision:revision(item.edits),tracks:visual.tracks?visual.tracks.filter(t=>!t.excluded).length:row.tracks,searchTracks:item.searchTracks??row.searchTracks??[],prepared:!!item.prepared&&item.prepared.fp===row.sourceFingerprint&&item.prepared.editRevision===revision(item.edits),convertedKeys,needsConversion:activeOpus.some(key=>!convertedKeys.includes(key)),...(dirty&&row.onDevice?{status:'update'}:{})};
+    return{...row,durationMs:cachedDuration({...row,edited:dirty,editRevision:revision(item.edits)},item),title:visual.title||row.title,cover:item.coverData||row.cover,hidden:!!item.hidden,tags:item.tags??[],edited:dirty,editRevision:revision(item.edits),tracks:visual.tracks?visual.tracks.filter(t=>!t.excluded).length:row.tracks,searchTracks:item.searchTracks??row.searchTracks??[],prepared:!!item.prepared&&item.prepared.fp===row.sourceFingerprint&&item.prepared.editRevision===revision(item.edits),convertedKeys,needsConversion:activeOpus.some(key=>!convertedKeys.includes(key)),...(dirty&&row.onDevice?{status:'update'}:{})};
   }
 }
