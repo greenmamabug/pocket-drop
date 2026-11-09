@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import fs from 'node:fs/promises';
-import {randomUUID} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -10,7 +10,7 @@ import { inspectDevice, nodeSyncFs, ensureDeviceMarker } from '@studio-pocket/sy
 import { planTransfer } from '../vendor/sync-engine/dist/plan.js';
 import { applySync } from '../vendor/sync-engine/dist/apply.js';
 import { checkLibrary, checkPlaylistDir } from '@studio-pocket/library-format/node';
-import {validateLibraryIndex,validatePlaylistManifest,validateGroups} from '@studio-pocket/library-format';
+import {validateLibraryIndex,validatePlaylistManifest,validateGroups,checkPlaylistDir as checkPlaylistWith} from '@studio-pocket/library-format';
 import { tree } from './archive.mjs';
 export const ID=/^[a-z0-9][a-z0-9-]{0,39}$/;
 export async function verifyMacVolume(volume,{expectedUUID}={}){
@@ -47,7 +47,7 @@ export class Device {
       }
       let groups=null;try{groups=validateGroups(JSON.parse(await bounded(path.join(this.root,'groups.json'))));}catch{}
       const check={index,playlists,groups,problems:[],syncLockPresent:false};
-      return {connected:true,initialized:!!info.marker,deviceId:info.marker?.deviceId,total:Number(disk.blocks)*Number(disk.bsize),free:Number(disk.bavail)*Number(disk.bsize),volume:this.volume,check};
+      return {connected:true,initialized:!!info.marker,deviceId:info.marker?.deviceId,total:Number(disk.blocks)*Number(disk.bsize),free:Number(disk.bavail)*Number(disk.bsize),volume:this.volume,audioDurationMs:playlists.reduce((n,p)=>n+(p.manifest?.tracks.reduce((sum,t)=>sum+t.durationMs,0)??0),0),durationIncomplete:playlists.some(p=>!p.manifest),check};
     }catch(error){return {connected:false,initialized:false,volume:this.volume,error:error.message};}
   }
   async initialize(){await this.resolveVolume();await this.verify(this.volume);await noLinks(this.root);await ensureDeviceMarker(this.volume,'Pocket Drop/4.0.0');return this.inspect();}
@@ -114,14 +114,17 @@ export class Device {
     for(const method of ['mkdirp','writeFile','remove','rename'])wrapped[method]=async(...args)=>{await assert();await safePath(args[0]);if(method==='rename')await safePath(args[1]);const result=await nodeSyncFs[method](...args);await assert();if(method==='remove'&&removalPaths.delete(args[0])){removalSteps++;reportRemoval('Removing from Pocket…');}if(method==='rename'&&args[1]===path.join(this.root,'library.json')){removalSteps++;reportRemoval('Updating Pocket library…');}return result;};
     wrapped.copyFile=async(from,to,progress)=>{
       await assert();await safePath(to);let copied=0;
-      const gate=new Transform({transform(chunk,encoding,done){assert().then(()=>{copied+=chunk.length;progress?.(copied);done(null,chunk);},done);}});
-      await pipeline(createReadStream(from),gate,createWriteStream(to,{flags:'w'}));await assert();
+      let checkedAt=performance.now(),lastReport=0;
+      const gate=new Transform({transform(chunk,encoding,done){if(cancelled())return done(new Error('Transfer cancelled. Re-sync to finish.'));const now=performance.now();const check=now-checkedAt>=750?assert().then(()=>{checkedAt=performance.now();}):Promise.resolve();check.then(()=>{copied+=chunk.length;if(now-lastReport>=150){progress?.(copied);lastReport=now;}done(null,chunk);},done);}});
+      await pipeline(createReadStream(from,{highWaterMark:1024*1024}),gate,createWriteStream(to,{flags:'w',highWaterMark:1024*1024}));progress?.(copied);await assert();
     };
+    let hashPhase='Checking existing audio';wrapped.sha256File=async file=>{await assert();const hash=createHash('sha256'),total=(await fs.stat(file)).size;let done=0,last=0;for await(const chunk of createReadStream(file,{highWaterMark:1024*1024})){if(cancelled())throw new Error('Transfer cancelled. Re-sync to finish.');hash.update(chunk);done+=chunk.length;if(performance.now()-last>200){last=performance.now();onProgress({phase:'verify',label:hashPhase+' · '+path.basename(file),fileBytesDone:done,fileBytesTotal:total});}}await assert();return hash.digest('hex');};
+    onProgress({phase:'verify',label:'Checking selected audio on Pocket…'});
     const plan=await planTransfer(wrapped,this.root,{send,remove},{verifyHashes:true});await this.compareArtwork(plan,send);await assert();if(send.length)onProgress({phase:'plan',bytesDone:0,bytesTotal:plan.bytesToCopy});
     let offset=0;const offsets=new Map();for(const action of plan.playlists.filter(p=>p.kind==='add'||p.kind==='update')){offsets.set(action.id,{offset,total:action.bytesToCopy});offset+=action.bytesToCopy;}
     const result=await applySync(wrapped,plan,{generator:'Pocket Drop/4.0.0',onProgress:e=>{const book=offsets.get(e.playlistId);onProgress({...e,bookBytesDone:Math.max(0,e.bytesDone-(book?.offset??0)),bookBytesTotal:book?.total??0});return !cancelled();}});
     await assert();if(remove.length)reportRemoval('Verifying removal…');else onProgress({phase:'verify',bytesDone:plan.bytesToCopy,bytesTotal:plan.bytesToCopy});const after=await checkLibrary(this.root);
-    for(const sp of send){await assert();const verified=await checkPlaylistDir(path.join(this.root,'playlists',sp.manifest.id),{id:sp.manifest.id},{verifyHashes:true});if(!verified.ok)throw new Error('Copied audio failed verification. Refresh and sync again.');}
+    hashPhase='Verifying copied audio';for(const sp of send){await assert();const verified=await checkPlaylistWith(wrapped,path.join(this.root,'playlists',sp.manifest.id),{id:sp.manifest.id},{verifyHashes:true});if(!verified.ok)throw new Error('Copied audio failed verification. Refresh and sync again.');}
     for(const sp of send)if(!after.playlists.some(p=>p.id===sp.manifest.id&&p.ok))throw new Error('The device did not verify the complete audiobook. Reconnect and sync again.');
     for(const id of remove)if(after.playlists.some(p=>p.id===id)||await fs.stat(path.join(this.root,'playlists',id)).catch(()=>null))throw new Error('Removal is incomplete. Reconnect and retry.');
     if(remove.length)reportRemoval('Removal complete',true);

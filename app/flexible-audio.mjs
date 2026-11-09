@@ -45,6 +45,6 @@ export async function flexibleMetadata(root, info, {cancelled = () => false} = {
   return {metadata: {
     format: 'myo-studio-archive', title: info.title,
     ...(info.coverName ? {cover: info.coverName} : {}),
-    tracks: tracks.map(({name, tags}, index) => ({index, title: tags.title?.trim() || path.posix.basename(name, path.posix.extname(name)), audio: name})),
+    tracks: tracks.map(({name, tags}, index) => ({index, title: tags.title?.trim() || path.posix.basename(name, path.posix.extname(name)), audio: name,...(info.iconAssignments?.[name]?{icon:info.iconAssignments[name]}:{})})),
   }, notes};
 }

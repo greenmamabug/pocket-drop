@@ -2,15 +2,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
+import {liveWindow,showWindow} from './window-lifecycle.mjs';
 import {Workspace} from './workspace.mjs';
 import {mediaResponse} from './media.mjs';
 import {checkUpdate} from './updates.mjs';
 import {revision,text} from './catalog.mjs';
 import {fingerprint} from './archive.mjs';
+import {dimensions} from './artwork.mjs';
 export const DOWNLOADS='https://github.com/greenmamabug/pocket-drop/releases';
 
 export async function installStudio({app,win,library,catalog,config,save,handle,idle,dialog,shell,nativeImage,Notification,protocol,net}){
-  const notify=(title,body)=>{if(config.completionNotifications&&(!win.isFocused()||!win.isVisible())&&Notification.isSupported()){const notification=new Notification({title,body});notification.on('click',()=>{win.show();win.focus();app.dock?.show();});notification.show();}};
+  const notify=(title,body)=>{if(config.completionNotifications&&(!liveWindow(win)||!win.isFocused()||!win.isVisible())&&Notification.isSupported()){const notification=new Notification({title,body});notification.on('click',()=>{showWindow(win,{focus:true});app.dock?.show();});notification.show();}};
   const renderCover=async(ref,edits)=>{
     const source=workspace.editor.asset(ref),image=nativeImage.createFromPath(source);if(image.isEmpty())throw new Error('The selected cover cannot be read.');
     const size=image.getSize();let output=image;
@@ -21,7 +23,7 @@ export async function installStudio({app,win,library,catalog,config,save,handle,
     const folder=path.join(catalog.folder,'rendered-artwork');await fs.mkdir(folder,{recursive:true});const file=path.join(folder,revision({ref,mode:edits.coverMode,position:edits.coverPosition})+'.png');await fs.writeFile(file,output.toPNG());return file;
   };
   const workspace=new Workspace(library,catalog,{renderCover,notify});
-  protocol.handle('pocket-media',async request=>{try{const url=new URL(request.url);if(url.hostname!=='preview')return new Response(null,{status:404});const file=workspace.editor.mediaFile(url.pathname.slice(1));return file?mediaResponse(file,request):new Response(null,{status:404});}catch{return new Response(null,{status:404});}});
+  protocol.handle('pocket-media',async request=>{try{const url=new URL(request.url);if(url.hostname!=='preview')return new Response(null,{status:404});const file=await workspace.editor.mediaFile(url.pathname.slice(1));return file?mediaResponse(file,request):new Response(null,{status:404});}catch{return new Response(null,{status:404});}});
   let lastResult=null;library.on('change',()=>{const result=library.lastResult;if(result?.id&&result.id!==lastResult&&!library.busy){lastResult=result.id;notify(result.tone==='error'?'Pocket Drop needs attention':result.kind==='remove'?'Removal finished':'Sync finished',result.message);}});
   handle('openEditor',key=>workspace.open(key));
   handle('closeEditor',id=>workspace.editor.close(id));
@@ -41,11 +43,15 @@ export async function installStudio({app,win,library,catalog,config,save,handle,
   handle('compareDuplicates',keys=>workspace.compareDuplicates(keys));
   handle('preferImport',async(keys,preferred)=>{idle();if(!Array.isArray(keys)||keys.length>20||!keys.includes(preferred))throw new Error('Choose a preferred import from this comparison.');const rows=keys.map(k=>workspace.row(k));if(rows.some(r=>!r.local)||new Set(rows.map(r=>r.id)).size!==1)throw new Error('Only matching local editions can be hidden together.');for(const row of rows)await catalog.set(row.key,{hidden:row.key!==preferred});await library.scan(true);});
   handle('restoreHidden',async key=>{idle();workspace.row(key);await catalog.set(key,{hidden:false});await library.scan(true);});
-  handle('saveCollections',async groups=>{idle();await catalog.groups(groups);library.publish();return catalog.data.groups;});
-  handle('importCollections',async()=>{idle();const groups=library.deviceState.check?.groups?.groups;if(!groups)throw new Error('No readable collections were found on Pocket.');const existing=catalog.data.groups;const assigned=new Set(existing.flatMap(g=>g.playlists));const merged=[...existing,...groups.filter(g=>!existing.some(e=>e.id===g.id)).map(g=>({...g,playlists:g.playlists.filter(id=>!assigned.has(id))}))];await catalog.groups(merged);library.publish();return merged;});
-  handle('applyCollections',async()=>{idle();workspace.requireNoPreparation();if(!library.deviceState.connected)throw new Error('Connect Pocket to apply collections.');const choice=await dialog.showMessageBox(win,{type:'question',message:'Apply these collections to Pocket?',detail:'Collection order and membership will be updated. Audio is kept. Items assigned here move out of other player groups; other groups and listening history are preserved. Older player software may not display groups.',buttons:['Cancel','Apply collections'],cancelId:0,defaultId:0});if(choice.response!==1)return;
-    library.busy=true;library.operation='collections';library.publish();try{await library.device.saveGroups(catalog.data.groups,{ownedIds:catalog.data.ownedGroups,expectedDeviceId:library.deviceState.deviceId});await library.log('Collections updated on Pocket.','success');}finally{library.busy=false;library.operation=null;await library.scan(true);}
+  handle('pickCollectionPicture',async()=>{
+    const result=await dialog.showOpenDialog(win,{title:'Choose a collection picture',properties:['openFile'],filters:[{name:'Images',extensions:['png','jpg','jpeg','webp']}]});if(result.canceled)return null;
+    const st=await fs.lstat(result.filePaths[0]);if(!st.isFile()||st.isSymbolicLink()||st.size>10*1024**2)throw new Error('Choose an image smaller than 10 MB.');const bytes=await fs.readFile(result.filePaths[0]),size=dimensions(bytes);if(!size||size.width*size.height>50_000_000)throw new Error('Choose a PNG, JPEG or WebP image with fewer than 50 million pixels.');
+    const image=nativeImage.createFromBuffer(bytes);if(image.isEmpty())throw new Error('This image cannot be read.');const bounds=image.getSize(),side=Math.min(bounds.width,bounds.height),square=image.crop({x:Math.floor((bounds.width-side)/2),y:Math.floor((bounds.height-side)/2),width:side,height:side}).resize({width:256,height:256,quality:'best'});
+    const ref='asset:'+randomUUID()+'.png',iconRef='asset:'+randomUUID()+'.png';await fs.mkdir(path.join(catalog.folder,'artwork'),{recursive:true});await fs.writeFile(workspace.editor.asset(ref),square.toPNG());await fs.writeFile(workspace.editor.asset(iconRef),square.resize({width:16,height:16,quality:'best'}).toPNG());return{ref,iconRef,thumbnail:square.resize({width:128,height:128,quality:'best'}).toDataURL()};
   });
+  handle('saveCollections',async(groups,changes={})=>{idle();const pictures={...(catalog.data.collectionPictures??{})};for(const[id,picture]of Object.entries(changes)){if(!groups.some(g=>g.id===id))throw new Error('Unknown collection picture.');if(picture===null){delete pictures[id];continue;}for(const ref of[picture.ref,picture.iconRef]){const file=workspace.editor.asset(ref),st=await fs.lstat(file);if(!st.isFile()||st.isSymbolicLink()||st.size>1024**2)throw new Error('Choose a collection picture using Change picture.');}const image=nativeImage.createFromPath(workspace.editor.asset(picture.ref));pictures[id]={ref:picture.ref,iconRef:picture.iconRef,thumbnail:image.resize({width:128,height:128,quality:'best'}).toDataURL()};}groups=groups.map(g=>({...g,icon:pictures[g.id]?'groups/'+g.id+'.png':g.icon}));await catalog.groups(groups,pictures);library.publish();return catalog.data.groups;});
+  handle('importCollections',async()=>{idle();const groups=library.deviceState.check?.groups?.groups;if(!groups)throw new Error('No readable collections were found on Pocket.');const existing=catalog.data.groups;const assigned=new Set(existing.flatMap(g=>g.playlists));const merged=[...existing,...groups.filter(g=>!existing.some(e=>e.id===g.id)).map(g=>({...g,playlists:g.playlists.filter(id=>!assigned.has(id))}))];await catalog.groups(merged);library.publish();return merged;});
+  handle('applyCollections',async()=>{idle();workspace.requireNoPreparation();if(!library.deviceState.connected)throw new Error('Connect Pocket to sync collections.');const plan=workspace.collectionPlan();const choice=await dialog.showMessageBox(win,{type:'question',message:'Sync collections to Pocket?',detail:`${plan.groups.length} collection(s). ${plan.keys.length} audio item(s) will be added or updated, then their pictures, order, and collection membership will be synced. Available space is checked before writing. Other collections and listening history are preserved.`,buttons:['Cancel','Sync Collections'],cancelId:0,defaultId:1});if(choice.response===1)await workspace.syncCollections(plan);});
   handle('trashExcluded',async id=>{
     idle();workspace.requireNoPreparation();const session=workspace.editor.session(id);if(!session.doc.isFolder)throw new Error('Individual originals inside an archive cannot be moved to Trash. Delete from this version keeps the archive unchanged.');
     const edits=catalog.get(session.rowKey).edits,excluded=edits?.tracks.filter(t=>t.excluded)??[];if(!excluded.length)throw new Error('Save some excluded tracks first.');if(await fingerprint(session.source)!==session.fp)throw new Error('The original files changed. Reopen Audio details.');

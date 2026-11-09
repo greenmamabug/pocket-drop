@@ -19,15 +19,17 @@ export function friendly(error){
 }
 export class Library extends EventEmitter{
   constructor({inbox,device=new Device(),thumbnail=async x=>x,stateFile,cacheFile,convertOpus=process.platform==='darwin',conversionCache,conversionOptions={},catalog}={}){super();this.catalog=catalog;this.convertOpus=convertOpus;this.conversionCache=conversionCache;this.conversionOptions=conversionOptions;this.inbox=inbox;this.device=device;this.thumbnail=thumbnail;this.stateFile=stateFile;this.cacheFile=cacheFile;this.rows=[];this.cache=new Map();this.logs=[];this.busy=false;this.scanning=false;this.progress=null;this.deviceState={connected:false};this.pending=new Map();this.lastResult=null;this.plannedTransferBytes=null;this.operationCount=0;}
-  snapshot(){return {inbox:this.inbox,rows:this.rows,collections:this.catalog?.data.groups??[],undoAvailable:!!this.catalog?.data.undo?.items?.length,preparation:this.preparation??null,operationStartedAt:this.operationStartedAt??null,device:this.deviceState,logs:this.logs,busy:this.busy,scanning:this.scanning,loading:this.scanning||!this.hasScanned,scanMessage:this.scanMessage,operation:this.operation,operationCount:this.operationCount,lastResult:this.lastResult,plannedTransferBytes:this.plannedTransferBytes,progress:this.progress};}
+  snapshot(){return {inbox:this.inbox,rows:this.rows,collections:this.catalog?.data.groups??[],undoAvailable:!!this.catalog?.data.undo?.items?.length,preparation:this.preparation??null,duplicates:this.duplicates??{checking:false,groups:[]},collectionPictures:Object.fromEntries(Object.entries(this.catalog?.data.collectionPictures??{}).map(([id,p])=>[id,{thumbnail:p.thumbnail}])),operationStartedAt:this.operationStartedAt??null,device:this.deviceState,logs:this.logs,busy:this.busy,scanning:this.scanning,refreshing:!!this.refreshing,loading:this.scanning||!this.hasScanned,scanMessage:this.scanMessage,operation:this.operation,operationCount:this.operationCount,lastResult:this.lastResult,plannedTransferBytes:this.plannedTransferBytes,progress:this.progress};}
   publish(){this.emit('change',this.snapshot());}
+  publishProgress(){const now=performance.now();if(now-(this.lastProgressPublish??-Infinity)<180)return;this.lastProgressPublish=now;this.publish();}
   async saveCache(){if(this.cacheFile){const temp=this.cacheFile+'.part';await fs.writeFile(temp,JSON.stringify([...this.cache]));await fs.rename(temp,this.cacheFile);}}
-  async restore(){if(this.cacheFile){try{const entries=JSON.parse(await fs.readFile(this.cacheFile,'utf8'));this.cache=new Map(entries.filter(e=>Array.isArray(e)&&typeof e[0]==='string'&&e[1]?.row&&typeof e[1].fp==='string'));}catch{}}if(this.stateFile){try{this.logs=JSON.parse(await fs.readFile(this.stateFile,'utf8')).filter(entry=>!/^MYO Pocket ejected(?: \(\d+ storage volumes\))?\. Safe to unplug\.$/.test(entry.text??'')).slice(0,100);}catch{}}}
+  async restore(){if(this.cacheFile){try{const entries=JSON.parse(await fs.readFile(this.cacheFile,'utf8'));this.cache=new Map(entries.filter(e=>Array.isArray(e)&&typeof e[0]==='string'&&e[1]?.row&&typeof e[1].fp==='string'));}catch{}}this.rows=[...this.cache.entries()].filter(([source])=>path.dirname(source)===this.inbox).map(([,entry])=>{const row={...entry.row,onDevice:false,status:entry.row.status==='error'?'error':'disconnected'};return this.catalog?this.catalog.decorate(row):row;});if(this.rows.length)this.hasScanned=true;if(this.stateFile){try{this.logs=JSON.parse(await fs.readFile(this.stateFile,'utf8')).filter(entry=>!/^MYO Pocket ejected(?: \(\d+ storage volumes\))?\. Safe to unplug\.$/.test(entry.text??'')).slice(0,100);}catch{}}}
   async log(text,tone='info'){this.logs.unshift({id:randomUUID(),time:new Date().toISOString(),text:friendly(text),tone});this.logs=this.logs.slice(0,100);this.publish();if(this.stateFile)await fs.writeFile(this.stateFile,JSON.stringify(this.logs)).catch(()=>{});}
   scan(force=false){
     if(this.scanTask||this.busy)return this.scanTask??Promise.resolve();
     this.stopRequested=false;
-    const task=this.runScan(force).finally(()=>{if(this.scanTask===task)this.scanTask=null;});this.scanTask=task;return task;
+    this.refreshing=true;this.scanMessage='Refreshing…';this.publish();
+    const task=this.runScan(force).finally(()=>{if(this.scanTask===task)this.scanTask=null;this.refreshing=false;this.scanMessage=null;this.publish();});this.scanTask=task;return task;
   }
   async stopScan(){this.stopRequested=true;if(this.scanTask)await this.scanTask;}
   async runScan(force=false){
@@ -42,10 +44,11 @@ export class Library extends EventEmitter{
       probe=JSON.stringify([this.inbox,ds,d.deviceId,stamps]);
       if(this.stopRequested||this.busy||(!force&&probe===this.lastProbe&&!this.rows.some(r=>['downloading','checking'].includes(r.status))))return;
     }catch(err){this.hasScanned=true;await this.log(friendly(err),'error');return;}finally{this.probing=false;}
-    if(this.stopRequested||this.busy)return;this.scanning=true;this.scanMessage='Updating library';this.publish();
+    if(this.stopRequested||this.busy)return;this.scanning=true;this.scanMessage='Refreshing…';this.publish();
     try{
       await fs.mkdir(this.inbox,{recursive:true});
       this.deviceState=await this.device.inspect();
+      if(this.catalog&&!this.catalog.data.collectionSetup&&!this.catalog.data.groups.length&&this.deviceState.check?.groups?.groups?.length)await this.catalog.groups(this.deviceState.check.groups.groups);
       const deviceSig=this.deviceState.connected?JSON.stringify([this.deviceState.deviceId,this.deviceState.check]):'disconnected';
       const found=[];const live=new Set();
       const entries=await fs.readdir(this.inbox,{withFileTypes:true});
@@ -60,12 +63,13 @@ export class Library extends EventEmitter{
           this.pending.set(source,{fp});
           const cached=this.cache.get(source);
           if(!force&&cached?.fp===fp&&cached.deviceSig===deviceSig){found.push({...cached.row});continue;}
-          const known=cached?.fp===fp?cached:null;
+          const known=cached?.fp===fp?cached:null;let detailInfo=known?.info;
           if(known)Object.assign(base,known.row);
           else{
-            const info=await inspect(source);if(this.stopRequested)return;
-            base.notes=info.notes;base.title=info.title;base.id=playlistSlug(info.title);base.size=info.size;base.cover=info.cover?await this.thumbnail(info.cover):null;
-            base.searchTracks=info.meta?.tracks?.map(t=>t.title)??info.meta?.chapters?.map(t=>t.title)??info.audioFiles.map(n=>path.basename(n));base.opusCount=info.opusFiles.length;base.tracks=info.meta?.tracks?.length??info.meta?.chapters?.length??info.fileCount??0;base.unverified=true;
+            if(!cached&&this.scanMessage!=='Importing new audio…'){this.scanMessage='Importing new audio…';this.publish();}
+            const info=await inspect(source);detailInfo=info;if(this.stopRequested)return;
+            base.opusKeys=info.opusFiles;base.notes=info.notes;base.title=info.title;base.id=playlistSlug(info.title);base.size=info.size;base.cover=info.cover?await this.thumbnail(info.cover):null;
+            base.searchTracks=info.meta?.tracks?.map(t=>t.title)??info.meta?.chapters?.map(t=>t.title)??info.audioFiles.map(n=>path.basename(n));base.opusCount=info.opusFiles.length;base.oggCount=info.audioFiles.filter(n=>/\.ogg$/i.test(n)).length;base.tracks=info.meta?.tracks?.length??info.meta?.chapters?.length??info.fileCount??0;base.unverified=true;
           }
           if(this.stopRequested)return;
           const installed=this.deviceState.check?.playlists.find(p=>p.id===base.id&&p.manifest);
@@ -76,7 +80,7 @@ export class Library extends EventEmitter{
           }
           if(installed&&installed.manifest.title!==base.title&&!this.catalog?.get(base.key).edits){base.onDevice=false;base.status='error';base.message='This title conflicts with another playlist identity on Pocket. Resolve the title conflict before syncing.';}
           if(installed&&base.status==='unverified')base.message='On Pocket. Audio will be compared only when you choose to sync this item.';
-          this.cache.set(source,{...known,fp,deviceSig,row:{...base}});
+          this.cache.set(source,{...known,fp,deviceSig,info:detailInfo?{...detailInfo,cover:base.cover}:undefined,row:{...base}});
           found.push(base);
           this.rows=[...found,...this.rows.filter(r=>!found.some(n=>n.key===r.key))];this.publish();
         }catch(err){Object.assign(base,{status:'error',message:friendly(err),problem:describeProblem(err)});if(!found.includes(base))found.push(base);}
@@ -105,13 +109,13 @@ export class Library extends EventEmitter{
     if(kind==='remove'&&selected.some(r=>!r.onDevice))throw new Error('Select audiobooks currently on MYO Pocket.');
     if(kind==='sync'&&selected.some(r=>!r.local||!['ready','update','current','unverified'].includes(r.status)))throw new Error('Some selected audiobooks are not ready to sync.');
     if(new Set(selected.map(r=>r.id)).size!==selected.length)throw new Error('Select only one local edition of each title.');
-    this.lastResult=null;this.plannedTransferBytes=null;this.operationStartedAt=Date.now();this.operationCount=selected.length;this.busy=true;this.operation=kind;this.cancelled=false;this.progress={phase:kind==='remove'?'Removing from Pocket':'Preparing audiobooks',percent:0};this.publish();const prepared=[],estimate=new FileEstimate(selected.reduce((n,r)=>n+(this.catalog?.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.opus$/i.test(t.key)).length??r.opusCount??0),0));let completed=false,deviceStarted=false,preparingKey=null;
+    this.lastResult=null;this.plannedTransferBytes=null;this.operationStartedAt=Date.now();this.operationCount=selected.length;this.busy=true;this.operation=kind;this.cancelled=false;this.progress={phase:kind==='remove'?'Removing from Pocket':'Preparing audiobooks',percent:0};this.publish();const prepared=[],estimate=new FileEstimate(selected.reduce((n,r)=>n+(this.catalog?.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).length??r.opusCount??0),0));let completed=false,deviceStarted=false,preparingKey=null;
     try{
       for(const row of kind==='sync'?selected:[]){preparingKey=row.key;
         this.progress={phase:'Preparing '+row.title,percent:selected.some(r=>r.opusCount)?Math.round(selected.indexOf(row)/selected.length*30):0};this.publish();
         const source=path.join(this.inbox,row.source);const old=this.cache.get(source);const fp=await fingerprint(source);
         if(!old||old.fp!==fp)throw new Error('An audiobook changed. Refresh before syncing.');
-        const p=await prepare(source,{...this.conversionOptions,convertOpus:this.convertOpus,conversionCache:this.conversionCache,editPlan:this.catalog?.get(row.key).edits,cancelled:()=>this.cancelled,onConversion:e=>{const conversionEtaAt=estimate.update(row.key+':'+e.index,e.phase);this.progress={conversionEtaAt,phase:`${e.phase==='Using converted audio'?'Using converted AAC audio':'Converting Opus to AAC'} · ${row.title} · file ${e.index} of ${e.total} · ${e.file} · ${e.total-e.index} remaining`,conversionFraction:(selected.indexOf(row)+e.percent)/selected.length,conversionKey:e.phase==='Using converted audio'?null:row.key,percent:Math.round((selected.indexOf(row)+e.percent)/selected.length*30)};this.publish();}});await this.transformPrepared?.(p,row);prepared.push(p);
+        const p=await prepare(source,{...this.conversionOptions,convertOpus:this.convertOpus,conversionCache:this.conversionCache,editPlan:this.catalog?.get(row.key).edits,cancelled:()=>this.cancelled,onPreparation:e=>{this.progress={phase:e.phase+' · '+row.title+' · '+e.file,percent:Math.round(selected.indexOf(row)/selected.length*30)};this.publishProgress();},onConversion:e=>{const conversionEtaAt=estimate.update(row.key+':'+e.index,e.phase);this.progress={conversionEtaAt,phase:`${e.phase==='Using converted audio'?'Using converted AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC'} · ${row.title} · file ${e.index} of ${e.total} · ${e.file} · ${e.total-e.index} remaining`,conversionFraction:(selected.indexOf(row)+e.percent)/selected.length,conversionKey:e.phase==='Using converted audio'?null:row.key,percent:Math.round((selected.indexOf(row)+e.percent)/selected.length*30)};this.publishProgress();}});await this.transformPrepared?.(p,row);prepared.push(p);
         if((row.content&&!row.edited&&!p.info.opusFiles.length&&await contentKey(p.playlist)!==row.content)||await fingerprint(source)!==fp)throw new Error('An audiobook changed. Refresh before syncing.');
       }
       for(let i=0;i<prepared.length;i++){
@@ -122,7 +126,7 @@ export class Library extends EventEmitter{
         row.content=await contentKey(item.playlist);cached.manifest=item.playlist.manifest;cached.row.content=row.content;cached.row.unverified=false;cached.row.tracks=item.playlist.tracks.length;
       }
       this.publish();preparingKey=null;deviceStarted=true;
-      const result=await this.device.execute({send:prepared.map(p=>p.playlist),remove:kind==='remove'?selected.map(r=>r.id):[],expectedDeviceId,cancelled:()=>this.cancelled,onProgress:e=>{if(kind==='sync'&&e.phase==='plan')this.plannedTransferBytes=e.bytesTotal;const row=selected.find(r=>r.id===e.playlistId);this.progress=kind==='remove'?{phase:e.label||'Removing from Pocket…',percent:e.percent??0}:{phase:e.phase==='verify'?'Verifying copied files…':'Syncing '+(row?.title??'audiobook')+(e.bookBytesTotal?' · '+Math.round(e.bookBytesDone/e.bookBytesTotal*100)+'% of this book':''),percent:e.bytesTotal?Math.round((selected.some(r=>r.opusCount)?30:0)+(selected.some(r=>r.opusCount)?70:100)*e.bytesDone/e.bytesTotal):100,bytesDone:e.bytesDone,bytesTotal:e.bytesTotal};this.publish();}});
+      const result=await this.device.execute({send:prepared.map(p=>p.playlist),remove:kind==='remove'?selected.map(r=>r.id):[],expectedDeviceId,cancelled:()=>this.cancelled,onProgress:e=>{if(kind==='sync'&&e.phase==='plan')this.plannedTransferBytes=e.bytesTotal;const row=selected.find(r=>r.id===e.playlistId);this.progress=kind==='remove'?{phase:e.label||'Removing from Pocket…',percent:e.percent??0}:{phase:e.phase==='verify'?((e.label||'Verifying copied files…')+(e.fileBytesTotal?' · '+Math.round(e.fileBytesDone/e.fileBytesTotal*100)+'%':'')):'Syncing '+(row?.title??'audio')+(e.bookBytesTotal?' · '+Math.round(e.bookBytesDone/e.bookBytesTotal*100)+'% of this book':''),percent:e.phase==='verify'?(this.progress?.percent??30):e.bytesTotal?Math.round(30+60*e.bytesDone/e.bytesTotal):30,bytesDone:e.bytesDone,bytesTotal:e.bytesTotal};this.publishProgress();}});
       // execute() already verified the written data. Reuse that result instead of rehashing every book again.
       const updated=await this.device.inspect();const sig=JSON.stringify([updated.deviceId,updated.check]);this.deviceState=updated;const selectedIds=new Set(selected.map(r=>r.id));
       for(const cached of this.cache.values()){
@@ -133,7 +137,7 @@ export class Library extends EventEmitter{
         if(kind==='remove'){
           const items=selected.filter(r=>r.local&&result.removed.includes(r.id)).map(r=>({key:r.key,id:r.id,title:r.title,fp:this.cache.get(path.join(this.inbox,r.source))?.fp,revision:revision(this.catalog.get(r.key).edits)}));
           this.catalog.data.undo={deviceId:expectedDeviceId,items};await this.catalog.save();
-        }else for(const row of selected)if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{syncedRevision:revision(this.catalog.get(row.key).edits),syncedFingerprint:this.cache.get(path.join(this.inbox,row.source))?.fp,prepared:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,editRevision:revision(this.catalog.get(row.key).edits),bytes:row.preparedBytes}});
+        }else for(const row of selected)if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{syncedRevision:revision(this.catalog.get(row.key).edits),syncedFingerprint:this.cache.get(path.join(this.inbox,row.source))?.fp,prepared:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,editRevision:revision(this.catalog.get(row.key).edits),bytes:row.preparedBytes,convertedKeys:this.catalog.get(row.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??row.opusKeys??[]}});
       }
       this.lastResult={...transferResult(selected,result,kind),id:randomUUID()};for(const row of selected){row.onDevice=kind!=='remove';row.status=kind==='remove'?'ready':'current';}
       completed=true;
@@ -143,7 +147,7 @@ export class Library extends EventEmitter{
     }catch(err){this.lastResult={id:randomUUID(),kind,problem:describeProblem(err),tone:this.cancelled?'warning':'error',message:this.cancelled?'Sync cancelled':kind==='remove'?'Removal needs attention':'Sync needs attention',details:selected.map(row=>({title:row.title,status:'needs-attention',message:!deviceStarted&&preparingKey!==row.key?'Not transferred. Resolve the issue and try again.':friendly(err)})),warnings:[deviceStarted?'Check Recent Activity before retrying.':'Nothing was written to Pocket.']};await this.log(friendly(err)+(deviceStarted?' The operation may be incomplete; refresh and retry.':' Nothing was written to Pocket.'),'error');this.progress={phase:friendly(err),error:true,percent:0};throw new Error(friendly(err));}
     finally{
       try{const cleaned=await Promise.allSettled(prepared.map(p=>p.cleanup()));if(cleaned.some(r=>r.status==='rejected'))await this.log('Temporary-file cleanup was incomplete.','warning');}
-      finally{this.busy=false;this.operation=null;this.operationCount=0;if(!completed)this.cache.clear();this.lastProbe=null;this.publish();}
+      finally{this.busy=false;this.operation=null;this.operationCount=0;if(!completed)for(const entry of this.cache.values())entry.deviceSig=null;this.lastProbe=null;this.publish();}
       await this.scan();
     }
   }

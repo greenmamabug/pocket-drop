@@ -6,9 +6,10 @@ const plist = require('plist');
 module.exports = async context => {
   if (context.electronPlatformName !== 'darwin') return;
   const contents = path.join(context.appOutDir, context.packager.appInfo.productFilename + '.app', 'Contents');
-  await fs.rename(path.join(contents, 'Resources', 'icon.icns'), path.join(contents, 'Resources', 'PocketDrop.icns'));
+  const iconName='PocketDrop-'+context.packager.appInfo.version+'.icns';
+  await fs.rename(path.join(contents, 'Resources', 'icon.icns'), path.join(contents, 'Resources', iconName));
   const file = path.join(contents, 'Info.plist');
   const info = plist.parse(await fs.readFile(file, 'utf8'));
-  info.CFBundleIconFile = 'PocketDrop.icns';
+  info.CFBundleIconFile = iconName;
   await fs.writeFile(file, plist.build(info));
 };

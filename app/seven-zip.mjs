@@ -12,10 +12,11 @@ export function sevenZipPath() {
     ? path.join(process.resourcesPath, 'tools', '7zz')
     : fileURLToPath(new URL(`../assets/tools/7zz-${process.platform}${process.platform === 'darwin' ? '-'+process.arch : ''}`, import.meta.url));
 }
-async function run(args, maxBuffer = 16 * 1024 ** 2) {
+async function run(args, maxBuffer = 16 * 1024 ** 2,signal) {
   try {
-    return (await exec(sevenZipPath(), args, {encoding: 'buffer', maxBuffer, timeout: 30 * 60 * 1000, windowsHide: true})).stdout;
+    return (await exec(sevenZipPath(), args, {encoding: 'buffer', maxBuffer, timeout: 30 * 60 * 1000, windowsHide: true,signal})).stdout;
   } catch (error) {
+    if(signal?.aborted)throw new Error('Duplicate check paused.');
     if (error.code === 'ENOENT') throw new Error('The 7z reader is missing. Reinstall Pocket Drop.');
     throw new Error('Cannot read this 7z archive. It may be damaged, encrypted, or use an unsupported format.');
   }
@@ -65,15 +66,17 @@ export async function openSevenZip(source, {safeName, visible, tree, limits}) {
       if (bytes.length !== entry.size) throw new Error('7z entry size does not match its listing.');
       return bytes;
     },
-    extract: async () => {
+    extract: async (selected,{signal}={}) => {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pocket-drop-7z-'));
       const cleanup = () => fs.rm(root, {recursive: true, force: true});
       try {
         const free = await fs.statfs(root);
         if (total + 256 * 1024 ** 2 > Number(free.bavail) * Number(free.bsize)) throw new Error('Not enough temporary disk space to process this 7z archive.');
-        await run(['x', '-y', '-bd', '-bb0', '-mmt=2', '-p-', `-o${root}`, '--', source]);
+        if(selected?.some(name=>!files.some(f=>f.name===name)))throw new Error('Unknown archive entry.');
+        await run(['x', '-y', '-bd', '-bb0', '-mmt=2', '-spd', '-p-', `-o${root}`, '--', source,...(selected??[])],16*1024**2,signal);
         const actual = await tree(root);
-        if (actual.length !== files.length || actual.some(e => !files.some(f => f.name === e.name && f.size === e.size))) throw new Error('Extracted 7z contents do not match the archive listing.');
+        const expected=files.filter(f=>!selected||selected.includes(f.name));
+        if (actual.length !== expected.length || actual.some(e => !expected.some(f => f.name === e.name && f.size === e.size))) throw new Error('Extracted 7z contents do not match the archive listing.');
         return {root, cleanup};
       } catch (error) { await cleanup(); throw error; }
     },

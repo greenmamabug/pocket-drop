@@ -12,7 +12,7 @@ export function decodeOpus(input,output,{onProgress=()=>{},signal}={}){
  });
 }
 export async function encodeAAC(input,output,{signal,channels}={}){
- if(process.platform!=='darwin')throw new Error('Automatic Opus-to-AAC conversion is available on macOS.');
+ if(process.platform!=='darwin')throw new Error('Automatic Ogg/Opus-to-AAC conversion is available on macOS.');
  await run('/usr/bin/afconvert',['-f','m4af','-d','aac','-b',channels===1?'96000':'192000','-q','127',input,output],{signal,maxBuffer:1024**2});
 }
 export async function convertOpusFile(input,output,{cacheDir,onProgress=()=>{},cancelled=()=>false,encode=encodeAAC,onTiming=()=>{}}={}){
@@ -26,11 +26,11 @@ export async function convertOpusFile(input,output,{cacheDir,onProgress=()=>{},c
   temp=await fs.mkdtemp(path.join(os.tmpdir(),'pocket-aac-'));const pcm=path.join(temp,'decoded.caf'),aac=path.join(temp,'encoded.m4a');
   timer=setInterval(()=>{if(cancelled())abort.abort();},100);
   timing('decode-start');const decodeStarted=performance.now();
-  const decoded=await decodeOpus(input,pcm,{signal:abort.signal,onProgress:p=>onProgress(p*.7,'Decoding Opus')});timing('decode-complete',{durationSeconds:decoded.duration,channels:decoded.channels,stageMs:Math.round(performance.now()-decodeStarted)});check();const disk=await fs.statfs(temp);const needed=decoded.duration*(decoded.channels===1?96000:192000)/8*1.1+64*1024**2;if(Number(disk.bavail)*Number(disk.bsize)<needed)throw new Error('Not enough free space on your Mac to encode AAC.');onProgress(.7,'Encoding AAC');timing('encode-start',{durationSeconds:decoded.duration});const encodeStarted=performance.now();await encode(pcm,aac,{signal:abort.signal,channels:decoded.channels});timing('encode-complete',{stageMs:Math.round(performance.now()-encodeStarted)});check();
+  const decoded=await decodeOpus(input,pcm,{signal:abort.signal,onProgress:p=>onProgress(p*.7,/\.ogg$/i.test(input)?'Decoding Ogg':'Decoding Opus')});timing('decode-complete',{durationSeconds:decoded.duration,channels:decoded.channels,stageMs:Math.round(performance.now()-decodeStarted)});check();const disk=await fs.statfs(temp);const needed=decoded.duration*(decoded.channels===1?96000:192000)/8*1.1+64*1024**2;if(Number(disk.bavail)*Number(disk.bsize)<needed)throw new Error('Not enough free space on your Mac to encode AAC.');onProgress(.7,'Encoding AAC');timing('encode-start',{durationSeconds:decoded.duration});const encodeStarted=performance.now();await encode(pcm,aac,{signal:abort.signal,channels:decoded.channels});timing('encode-complete',{stageMs:Math.round(performance.now()-encodeStarted)});check();
   const encoded=await nodeFolderDeps.probe(aac);if(!/AAC/i.test(encoded.codec??'')||!encoded.durationSeconds||Math.abs(encoded.durationSeconds-decoded.duration)>.3)throw new Error('The converted AAC audio did not pass duration/format verification.');
   const record={originalHash,sha256:await sha(aac),duration:encoded.durationSeconds,channels:decoded.channels};check();
   if(cached){const staging=cached+'.'+randomUUID()+'.part';try{await fs.copyFile(aac,staging);await fs.rename(staging,cached);await fs.writeFile(cached+'.json',JSON.stringify(record));}finally{await fs.rm(staging,{force:true});}}
   await fs.copyFile(aac,output,fs.constants.COPYFILE_EXCL);onProgress(1,'AAC ready');succeeded=true;return record;
- }catch(error){timing('error',{error:error.message});if(abort.signal.aborted||cancelled())throw new Error('Transfer cancelled.');if(/ENOSPC/.test(error.message))throw new Error('Not enough space on your Mac to convert Opus audio. Free some space and try again.');throw new Error('Could not convert Opus audio: '+error.message);}
+ }catch(error){timing('error',{error:error.message});if(abort.signal.aborted||cancelled())throw new Error('Transfer cancelled.');if(/ENOSPC/.test(error.message))throw new Error('Not enough space on your Mac to convert Opus audio. Free some space and try again.');throw new Error('Could not convert '+path.basename(input)+': '+error.message);}
  finally{clearInterval(timer);abort.abort();if(temp)await fs.rm(temp,{recursive:true,force:true});timing('finished',{succeeded});}
 }

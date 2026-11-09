@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import fs from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {createHash} from 'node:crypto';
 import path from 'node:path';
 import {FileEstimate} from './progress-estimate.mjs';
 import {Editor,trackDocument} from './editor.mjs';
@@ -12,6 +14,7 @@ export class Workspace{
   constructor(library,catalog,{renderCover=async ref=>this.editor.asset(ref),notify=()=>{}}={}){
     this.library=library;this.catalog=catalog;this.editor=new Editor(catalog);this.renderCover=renderCover;this.notify=notify;
     library.transformPrepared=(prepared,row)=>this.apply(prepared,row);
+    library.on('change',()=>{if(!this.publishingDuplicates)this.scheduleDuplicates();});
   }
   row(key){const row=this.library.rows.find(r=>r.key===key);if(!row)throw new Error('This audio item is no longer in the library. Refresh and try again.');return row;}
   source(row){if(!row.local)throw new Error('Add the original to your Inbox to edit or prepare this audio item.');return path.join(this.library.inbox,row.source);}
@@ -27,7 +30,7 @@ export class Workspace{
     prepared.playlist.manifest.tracks=prepared.playlist.tracks.map(t=>t.entry);
     if(edits.coverRef){prepared.playlist.coverPath=await this.renderCover(edits.coverRef,edits);prepared.playlist.manifest.cover='cover.png';}
   }
-  async open(key){if(this.library.busy)throw new Error('Wait for the current device operation.');const row=this.row(key);return this.editor.open(row,this.source(row));}
+  async open(key){if(this.library.busy)throw new Error('Wait for the current device operation.');const row=this.row(key);return this.editor.open(row,this.source(row),(()=>{const entry=this.library.cache.get(this.source(row));return entry?.info?{...entry.info,sourceFingerprint:entry.fp}:null;})());}
   async save(id,input){if(this.library.busy||this.preparingTask)throw new Error('Finish or cancel the current operation before saving edits.');const result=await this.editor.save(id,input);const session=this.editor.session(id);if(!result.coverRef)await this.catalog.set(session.rowKey,{coverData:null});const cached=this.library.cache.get(session.source);if(cached){delete cached.row.content;delete cached.row.preparedBytes;delete cached.manifest;}
     await this.library.scan(true);return result;
   }
@@ -36,16 +39,16 @@ export class Workspace{
     this.requireNoPreparation();if(this.library.busy||this.library.scanning)throw new Error('Wait for the current operation to finish.');
     if(!Array.isArray(keys)||!keys.length||keys.length>500)throw new Error('Choose audio to prepare.');
     const rows=keys.map(k=>this.row(k));rows.forEach(r=>this.source(r));
-    const startedAt=Date.now(),estimate=new FileEstimate(rows.reduce((n,r)=>n+(this.catalog.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.opus$/i.test(t.key)).length??r.opusCount??0),0));let cancelled=false;this.cancelPreparation=()=>{cancelled=true;};
-    const progress=(value)=>{this.library.preparation={...this.library.preparation,...value,startedAt,elapsedMs:Date.now()-startedAt};this.library.preparation.estimateAt=estimate.estimateAt;this.library.preparation.remainingMs=estimate.estimateAt?Math.max(0,estimate.estimateAt-Date.now()):null;this.library.publish();};
+    const startedAt=Date.now(),estimate=new FileEstimate(rows.reduce((n,r)=>n+(this.catalog.get(r.key).edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).length??r.opusCount??0),0));let cancelled=false;this.cancelPreparation=()=>{cancelled=true;};
+    const progress=(value)=>{this.library.preparation={...this.library.preparation,...value,startedAt,elapsedMs:Date.now()-startedAt};this.library.preparation.estimateAt=estimate.estimateAt;this.library.preparation.remainingMs=estimate.estimateAt?Math.max(0,estimate.estimateAt-Date.now()):null;if(value.running!==undefined)this.library.publish();else this.library.publishProgress();};
     progress({running:true,phase:'Preparing audio',percent:0,items:rows.length});
     const task=(async()=>{
       await this.editor.closeAll();
       for(let i=0;i<rows.length;i++){
         if(cancelled)throw new Error('Audio preparation cancelled.');const row=rows[i],source=this.source(row),fp=await fingerprint(source),saved=this.catalog.get(row.key),editRevision=revision(saved.edits);
         progress({phase:'Preparing '+row.title,percent:Math.round(i/rows.length*100)});
-        const p=await prepare(source,{...this.library.conversionOptions,convertOpus:this.library.convertOpus,conversionCache:this.library.conversionCache,editPlan:saved.edits,cancelled:()=>cancelled,onConversion:e=>{estimate.update(row.key+':'+e.index,e.phase);progress({phase:e.phase==='Using converted audio'?'Using prepared AAC audio':'Converting Opus to AAC',file:e.file,fileIndex:e.index,fileTotal:e.total,percent:Math.round((i+e.percent)/rows.length*100)});}});
-        try{await this.apply(p,row);if(await fingerprint(source)!==fp||revision(this.catalog.get(row.key).edits)!==editRevision)throw new Error('Source or edits changed during preparation. Try again.');const bytes=p.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0);await this.catalog.set(row.key,{prepared:{fp,editRevision,bytes},searchTracks:p.playlist.tracks.map(t=>t.entry.title)});const cached=this.library.cache.get(source);if(cached)cached.row.preparedBytes=bytes;}
+        const p=await prepare(source,{...this.library.conversionOptions,convertOpus:this.library.convertOpus,conversionCache:this.library.conversionCache,editPlan:saved.edits,cancelled:()=>cancelled,onConversion:e=>{estimate.update(row.key+':'+e.index,e.phase);progress({phase:e.phase==='Using converted audio'?'Using prepared AAC audio':/\.ogg$/i.test(e.file)?'Converting Ogg to AAC':'Converting Opus to AAC',file:e.file,fileIndex:e.index,fileTotal:e.total,percent:Math.round((i+e.percent)/rows.length*100)});}});
+        try{await this.apply(p,row);if(await fingerprint(source)!==fp||revision(this.catalog.get(row.key).edits)!==editRevision)throw new Error('Source or edits changed during preparation. Try again.');const bytes=p.playlist.tracks.reduce((n,t)=>n+t.entry.sizeBytes,0);await this.catalog.set(row.key,{prepared:{fp,editRevision,bytes,convertedKeys:saved.edits?.tracks.filter(t=>!t.excluded&&/\.(opus|ogg)$/i.test(t.key)).map(t=>t.key)??p.info.opusFiles},searchTracks:p.playlist.tracks.map(t=>t.entry.title)});const cached=this.library.cache.get(source);if(cached)cached.row.preparedBytes=bytes;}
         finally{await p.cleanup();}
       }
       progress({running:false,phase:'Audio is ready to sync',percent:100,file:null});this.notify('Audio preparation finished',`${rows.length} audio item${rows.length===1?' is':'s are'} ready.`);await this.library.log('Audio preparation finished. '+rows.length+' item(s) ready.','success');
@@ -58,11 +61,50 @@ export class Workspace{
     const keys=[];for(const item of undo.items){const row=this.row(item.key);if(row.id!==item.id||await fingerprint(this.source(row))!==item.fp||revision(this.catalog.get(row.key).edits)!==item.revision)throw new Error('An original or its edits changed since removal. Review it and sync it normally.');keys.push(row.key);}
     await this.library.transfer(keys,'sync',undo.deviceId);this.catalog.data.undo=null;await this.catalog.save();this.library.publish();
   }
-  async compareDuplicates(keys){
+  collectionPlan(){
+    const groups=structuredClone(this.catalog.data.groups),ids=[...new Set(groups.flatMap(g=>g.playlists))],keys=[];
+    for(const id of ids){const rows=this.library.rows.filter(r=>r.id===id&&!r.hidden),local=rows.find(r=>r.local),onPocket=rows.some(r=>r.onDevice);
+      if(!onPocket||local?.edited){if(!local||!['ready','update','current','unverified','disconnected'].includes(local.status))throw new Error(`Add the original for “${local?.title??id}” to your Inbox before syncing this collection.`);keys.push(local.key);}
+    }
+    return{groups,keys,deviceId:this.library.deviceState.deviceId,revision:revision({groups,pictures:this.catalog.data.collectionPictures})};
+  }
+  async syncCollections(plan){
+    this.requireNoPreparation();if(this.syncingCollections||this.library.busy)throw new Error('Wait for the current operation.');if(!this.library.deviceState.connected)throw new Error('Connect Pocket to sync collections.');
+    const unchanged=()=>{if(this.library.deviceState.deviceId!==plan.deviceId||revision({groups:this.catalog.data.groups,pictures:this.catalog.data.collectionPictures})!==plan.revision)throw new Error('Pocket or its collections changed. Review Sync Collections again.');};unchanged();this.syncingCollections=true;
+    try{
+      if(plan.keys.length)await this.library.transfer(plan.keys,'sync',plan.deviceId);
+      unchanged();this.library.busy=true;this.library.operation='collections';this.library.progress={phase:'Syncing collections',percent:95};this.library.publish();
+      const icons=new Map();for(const group of plan.groups){const picture=this.catalog.data.collectionPictures?.[group.id];if(picture?.iconRef&&group.icon)icons.set(group.icon,this.editor.asset(picture.iconRef));}
+      await this.library.device.saveGroups(plan.groups,{icons,ownedIds:this.catalog.data.ownedGroups,expectedDeviceId:plan.deviceId});await this.library.log('Collections synced to Pocket.','success');this.library.progress={phase:'Collections synced',percent:100};
+    }finally{this.syncingCollections=false;this.library.busy=false;this.library.operation=null;this.library.publish();await this.library.scan(true);}
+  }
+  duplicateCandidates(){const groups=new Map();for(const row of this.library.rows.filter(r=>r.local&&!r.hidden&&r.id&&!['error','downloading','checking'].includes(r.status))){if(!groups.has(row.id))groups.set(row.id,[]);groups.get(row.id).push(row);}return[...groups.values()].filter(rows=>rows.length>1&&rows.length<=20);}
+  duplicatePublish(value){this.library.duplicates=value;this.publishingDuplicates=true;try{this.library.publish();}finally{this.publishingDuplicates=false;}}
+  scheduleDuplicates(){
+    clearTimeout(this.duplicateTimer);
+    if(this.library.busy||this.library.refreshing||this.library.scanning||this.preparingTask||this.library.preparation?.running){this.duplicateAbort?.abort();return;}
+    if(this.duplicateTask)return;
+    const candidates=this.duplicateCandidates(),signature=revision(candidates.map(rows=>rows.map(r=>[r.key,r.sourceFingerprint,revision(this.catalog.get(r.key).edits)])));
+    if(signature===this.duplicateSignature)return;
+    this.duplicateTimer=setTimeout(()=>{this.duplicateTimer=null;this.duplicateTask=this.checkDuplicates(candidates,signature).catch(()=>{}).finally(()=>{this.duplicateTask=null;this.scheduleDuplicates();});},1500);this.duplicateTimer.unref?.();
+  }
+  async checkDuplicates(candidates,signature){
+    const controller=new AbortController();this.duplicateAbort=controller;this.duplicatePublish({checking:true,groups:[]});
+    try{const groups=[];for(const rows of candidates){const result=await this.compareDuplicates(rows.map(r=>r.key),{signal:controller.signal,useCache:true});groups.push({title:rows[0].title,items:result.items});}if(controller.signal.aborted)return;this.duplicateSignature=signature;this.duplicatePublish({checking:false,groups});}
+    catch(error){this.duplicatePublish({checking:false,groups:[],message:controller.signal.aborted?null:'A possible duplicate could not be compared. Your originals are kept.'});if(!controller.signal.aborted)this.duplicateSignature=signature;}
+    finally{this.duplicateAbort=null;}
+  }
+  async compareDuplicates(keys,{signal,useCache=false}={}){
     if(this.library.busy||this.preparingTask)throw new Error('Wait for the current operation to finish.');
     if(!Array.isArray(keys)||keys.length<2||keys.length>20)throw new Error('Choose 2–20 matching imports to compare.');
-    const records=[];
-    for(const key of keys){const row=this.row(key),doc=await trackDocument(this.source(row));try{const hashes=[];for(const t of doc.tracks)hashes.push(await nodeFolderDeps.sha256(path.join(doc.root,t.key)));records.push({key,title:row.title,source:row.source,tracks:hashes.length,orderHash:revision(hashes),audioHash:revision([...hashes].sort()),editRevision:revision(this.catalog.get(key).edits),metadataRevision:revision(doc.tracks.map(t=>({title:t.title,icon:t.iconKey})))});}finally{await doc.cleanup();}}
-    return{items:records.map(r=>({...r,comparison:(r.orderHash===records[0].orderHash?'Identical audio in the same order':r.audioHash===records[0].audioHash?'Same audio files, different order':'Different audio or edition')+(r.editRevision!==records[0].editRevision||r.metadataRevision!==records[0].metadataRevision?' · names, icons, or saved edits differ':'')}))};
+    const records=[],cache=this.catalog.data.duplicateChecks??={};
+    const check=()=>{if(signal?.aborted||this.library.busy||this.preparingTask)throw new Error('Duplicate check paused.');};
+    for(const key of keys){check();const row=this.row(key),source=this.source(row),fp=await fingerprint(source),cached=useCache?cache[key]:null;let record;
+      if(cached?.fp===fp)record={...cached.record};
+      else{const doc=await trackDocument(source,{signal});try{const hashes=[];for(const t of doc.tracks){check();const hash=createHash('sha256');for await(const chunk of createReadStream(path.join(doc.root,t.key),{highWaterMark:1024*1024})){check();hash.update(chunk);}hashes.push(hash.digest('hex'));}record={key,source:row.source,tracks:hashes.length,orderHash:revision(hashes),audioHash:revision([...hashes].sort()),metadataRevision:revision(doc.tracks.map(t=>({title:t.title,icon:t.iconKey})))};check();cache[key]={fp,record};}finally{await doc.cleanup();}}
+      records.push({...record,title:row.title,editRevision:revision(this.catalog.get(key).edits)});
+    }
+    check();await this.catalog.save();return{items:records.map(r=>({...r,comparison:(r.orderHash===records[0].orderHash?'Identical audio in the same order':r.audioHash===records[0].audioHash?'Same audio files, different order':'Different audio or edition')+(r.editRevision!==records[0].editRevision||r.metadataRevision!==records[0].metadataRevision?' · names, icons, or saved edits differ':'')}))};
   }
+  async close(){clearTimeout(this.duplicateTimer);this.duplicateAbort?.abort();await this.duplicateTask;await this.editor.closeAll();}
 }

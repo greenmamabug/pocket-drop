@@ -1,3 +1,17 @@
+# 4.4.1
+
+- Guard destroyed Electron windows during quit, activation, notifications and IPC; handle startup failures.
+- Convert Ogg Vorbis and Ogg Opus to verified AAC using a streaming worker and native macOS encoder; keep originals.
+- Reduce per-chunk USB metadata checks and publish source checking/copy/verification progress with cancellation.
+- Restore cached Inbox rows immediately; reuse unchanged metadata and keep the index after failed transfers.
+- Open audio details from names/metadata; extract only requested preview files. Add title edit pencils and persistent opening indicators.
+- Save keeps details open; Save and close returns to the library. Refresh spins inline, announces importing, and has no overlay.
+- Circular collection pictures, one collection per audio item, and Sync Collections copies missing member audio and arrangement.
+- Automatic cached duplicate comparisons run only for likely matching imports and pause for foreground work.
+- Recognize loose-folder cover aliases/largest artwork and numbered track icons, including local disc scopes.
+- Regenerate Finder icons with Apple's standard/Retina tools and version-specific bundle resource names.
+- Show measured total audio duration from player manifests; add a friendly-name pencil and “Your audio. Your player.” tagline.
+
 # Pocket Drop changes
 
 ## 4.4.0

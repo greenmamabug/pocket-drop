@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.4.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.0/Pocket-Drop-4.4.0-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.0/Pocket-Drop-4.4.0-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.4.1](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.1/Pocket-Drop-4.4.1-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.1](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.1/Pocket-Drop-4.4.1-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
@@ -52,17 +52,17 @@ For extracted folders only, **Move excluded originals to Trash** is a separate c
 
 The Collections area arranges items into player-compatible groups. Create, rename, reorder or delete collections and order their members. Each audio item belongs to one player collection; tags can span multiple subjects. You can create up to 30 collections with names up to 40 characters.
 
-Use **Import from Pocket** to bring existing groups into this app. Local membership takes precedence when merging imports. **Apply to Pocket** confirms the change and writes the open-source groups format atomically. It preserves other groups and listening history. Items assigned here move out of other player groups; missing audio stays listed locally and becomes visible on the player after its audio is synced. Group display depends on player software that supports groups. Collection deletion keeps audio in the library and on the player; apply collections to update the player's group list.
+Use **Read from Pocket** to bring existing groups into this app. Local membership takes precedence when merging imports. **Sync Collections** confirms the change and writes the open-source groups format atomically. It preserves other groups and listening history. Items assigned here move out of other player groups; missing or edited member audio is synced before the collection arrangement. Choose a custom collection picture, displayed in a circular frame. Group display depends on player software that supports groups. Collection deletion keeps audio in the library and on the player; sync collections to update the player's group list.
 
 ## Prepare and sync
 
-Use **Prepare audio** or **Save & prepare audio** to convert/cache audio before plugging in Pocket. Preparation runs on the Mac; navigation, history and ejection remain available. Its progress shows the file/count and elapsed time. Estimates begin after completed conversions provide timing samples; long files can make an estimate need updating. Cancel preparation independently of a device transfer.
+Use **Prepare audio** (shown only for items needing conversion) to convert/cache audio before plugging in Pocket. Preparation runs on the Mac; navigation, history and ejection remain available. Its progress shows the file/count and elapsed time. Estimates begin after completed conversions provide timing samples; long files can make an estimate need updating. Cancel preparation independently of a device transfer.
 
-MP3 and AAC in M4A/M4B/AAC are supported. Opus is converted to AAC-LC on Sync or Prepare using a streaming WASM decoder and macOS afconvert (96 kb/s mono, 192 kb/s stereo). Prepared audio is cached and verified before reuse. Getting AAC directly avoids another lossy encoding step. Other recognized audio types receive an unsupported-format message instead of being silently skipped. Source audio, encryption, file-count, file-size and extraction protections still apply: up to 500 tracks per item in the player format, 20,000 archive entries, 4 GB per file and 12 GB per imported item.
+MP3 and AAC in M4A/M4B/AAC are supported. Ogg Vorbis and Ogg Opus (including .ogg files) are converted to AAC-LC on Sync or Prepare using a streaming WASM decoder and macOS afconvert (96 kb/s mono, 192 kb/s stereo). Prepared audio is cached and verified before reuse. Getting AAC directly avoids another lossy encoding step. Other recognized audio types receive an unsupported-format message instead of being silently skipped. Source audio, encryption, file-count, file-size and extraction protections still apply: up to 500 tracks per item in the player format, 20,000 archive entries, 4 GB per file and 12 GB per imported item.
 
 Connect with a USB data cable and **turn on USB storage when prompted on your device**. The first onboard volume is Y2 MAIN. Create its library if prompted. Select audio and click Sync; review additions/updates, file counts and estimated space. Actual free space is checked before writing. Only onboard audio storage is supported by this version.
 
-**Refresh** beside Audio Library works disconnected; use **All Audio** to see local items. Not on Pocket requires a connected player for comparison. Background discovery reads metadata and filenames, without decoding or hashing every book. Full comparisons run for explicitly requested preparation, duplicate comparison or syncing.
+**Refresh** beside Audio Library works disconnected; use **All Audio** to see local items. Not on Pocket requires a connected player for comparison. Background discovery reads metadata and filenames, without decoding or hashing every book. Likely matching imports are compared quietly in the background, cached by source fingerprint, and paused for foreground operations. Other full comparisons run only for explicitly requested preparation or syncing.
 
 On Pocket, choose items for removal and use the red removal action. Original files stay in the Inbox. **Undo removal** can restore the most recent local removal to the same player, provided originals and saved edits are unchanged.
 
@@ -111,6 +111,6 @@ Browser checks need Playwright's Chromium. Linux native Electron checks need an 
 
 ## Validation and limits
 
-[TEST-RESULTS.md](TEST-RESULTS.md) records actual checks. Node tests use real audio fixtures and simulated player filesystems. Browser and real Linux Electron checks cover UI/IPC, preview seeking and native image processing. Those do not establish native macOS AAC encoding, USB ejection/rename, notifications, Gatekeeper or player hardware compatibility. The user has reported earlier Intel versions work on their Mac. User-provided large audiobook archives exceeded the chat attachment transfer limit and were not inspected.
+[TEST-RESULTS.md](TEST-RESULTS.md) records actual checks. Node tests use real audio fixtures and simulated player filesystems. Browser and real Linux Electron checks cover UI/IPC, preview seeking and native image processing. Mac CI additionally checks native AAC encoding and the editor. These tests do not establish USB ejection/rename, notifications, Gatekeeper or player hardware compatibility. The user has reported earlier Intel versions work on their Mac. User-provided large audiobook archives exceeded the chat attachment transfer limit and were not inspected.
 
 [CHANGELOG.md](CHANGELOG.md) describes this release's features. Preserve the GPL licence, notices and corresponding source when redistributing. Studio Pocket Desktop's proprietary code is not included; the app uses its openly licensed engine and library format.
