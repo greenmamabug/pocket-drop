@@ -1,0 +1,32 @@
+{
+  "format": "studiopocket-library",
+  "formatVersion": 1,
+  "generatedAt": "2026-10-18T12:00:00Z",
+  "generator": "library-format/fixtures",
+  "playlists": [
+    {
+      "id": "bedtime",
+      "title": "Bedtime stories",
+      "dir": "playlists/bedtime",
+      "trackCount": 3,
+      "totalBytes": 73872,
+      "manifestSha256": "062e8648181ad300348f2e18ce0350847ef5f15c3a28576e65714b4c6beca259"
+    },
+    {
+      "id": "songs",
+      "title": "Silly songs",
+      "dir": "playlists/songs",
+      "trackCount": 2,
+      "totalBytes": 26088,
+      "manifestSha256": "331f03300d76f6abd43c9bc41db26fe2435ea1293cb30c50de875deaabb0718a"
+    },
+    {
+      "id": "broken",
+      "title": "Interrupted transfer",
+      "dir": "playlists/broken",
+      "trackCount": 2,
+      "totalBytes": 49196,
+      "manifestSha256": "cd55d4087cdca1418d266734ace9282fc3d8decc7d3374b25198f65d196c6836"
+    }
+  ]
+}

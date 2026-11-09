@@ -1,0 +1,43 @@
+{
+  "format": "studiopocket-playlist",
+  "formatVersion": 1,
+  "id": "bedtime",
+  "title": "Bedtime stories",
+  "author": "Mum",
+  "source": {
+    "kind": "local"
+  },
+  "cover": "cover.jpg",
+  "icon": "icon.png",
+  "tracks": [
+    {
+      "id": "ch1",
+      "title": "Chapter one",
+      "file": "tracks/ch1.mp3",
+      "durationMs": 3056,
+      "sizeBytes": 18564,
+      "sha256": "8fee0eee951353e4ecb27326a71e3bf79c13859ec408558329f2b858a1f6af6b",
+      "mimeType": "audio/mpeg",
+      "icon": "icons/ch1.png"
+    },
+    {
+      "id": "ch2",
+      "title": "Chapter two",
+      "file": "tracks/ch2.mp3",
+      "durationMs": 4075,
+      "sizeBytes": 24676,
+      "sha256": "428acffc88aa3c7a60cebe68710613a6cf1d566a553f44fd8843420ca894bda4",
+      "mimeType": "audio/mpeg",
+      "icon": "icons/ch2.png"
+    },
+    {
+      "id": "ch3",
+      "title": "Chapter three",
+      "file": "tracks/ch3.mp3",
+      "durationMs": 5067,
+      "sizeBytes": 30632,
+      "sha256": "f8a1196e125bddde78a1d004bf92313c36459dc63a1425b0bbc89e4d7448fb97",
+      "mimeType": "audio/mpeg"
+    }
+  ]
+}

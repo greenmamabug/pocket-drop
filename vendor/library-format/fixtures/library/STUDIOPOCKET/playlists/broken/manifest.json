@@ -1,0 +1,31 @@
+{
+  "format": "studiopocket-playlist",
+  "formatVersion": 1,
+  "id": "broken",
+  "title": "Interrupted transfer",
+  "source": {
+    "kind": "local"
+  },
+  "cover": null,
+  "icon": null,
+  "tracks": [
+    {
+      "id": "t1",
+      "title": "Fine track",
+      "file": "tracks/t1.mp3",
+      "durationMs": 3056,
+      "sizeBytes": 18564,
+      "sha256": "8fee0eee951353e4ecb27326a71e3bf79c13859ec408558329f2b858a1f6af6b",
+      "mimeType": "audio/mpeg"
+    },
+    {
+      "id": "t2",
+      "title": "Truncated track",
+      "file": "tracks/t2.mp3",
+      "durationMs": 5067,
+      "sizeBytes": 30632,
+      "sha256": "f8a1196e125bddde78a1d004bf92313c36459dc63a1425b0bbc89e4d7448fb97",
+      "mimeType": "audio/mpeg"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "format": "studiopocket-groups",
+  "formatVersion": 1,
+  "updatedAt": "2026-10-18T12:00:00Z",
+  "generator": "library-format/fixtures",
+  "groups": [
+    {
+      "id": "g-bedtime",
+      "title": "Bedtime",
+      "icon": "groups/g-bedtime.png",
+      "iconRef": "yoto:fixture-moon",
+      "playlists": [
+        "bedtime",
+        "gone-away"
+      ]
+    },
+    {
+      "id": "g-music",
+      "title": "Music",
+      "icon": null,
+      "playlists": [
+        "broken",
+        "songs"
+      ]
+    },
+    {
+      "id": "g-empty",
+      "title": "Empty",
+      "playlists": []
+    }
+  ]
+}

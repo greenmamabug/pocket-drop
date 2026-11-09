@@ -1,0 +1,2 @@
+{ "format": "studiopocket-groups", "formatVersion": 1, "updatedAt": "2026-10-22T07:00:00Z", "generator": "x",
+  "groups": [ { "id": "g-a", "title": "A title that is far too long to fit under a square", "playlists": ["bedtime"] } ] }

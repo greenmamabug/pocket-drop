@@ -1,0 +1,41 @@
+{
+  "name": "@studio-pocket/sync-engine",
+  "version": "0.1.0",
+  "description": "Plans and applies USB library syncs for Studio Pocket: copy only what changed, stage every file, replace the index atomically, survive interruption.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "studio-pocket-sync": "dist/folder-cli.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "COPYING.commercial"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@studio-pocket/library-format": "*",
+    "music-metadata": "12.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  }
+}

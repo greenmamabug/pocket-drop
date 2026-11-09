@@ -1,0 +1,37 @@
+{
+  "name": "@studio-pocket/library-format",
+  "version": "0.1.0",
+  "description": "Versioned on-device library format for Studio Pocket: types, validation, completeness checks and shared fixtures.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "fixtures",
+    "LICENSE",
+    "COPYING.commercial"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "fixtures": "node --experimental-strip-types scripts/generate-fixtures.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./fixtures/*": "./fixtures/*"
+  }
+}

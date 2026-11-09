@@ -1,0 +1,125 @@
+{
+  "name": "pocket-drop",
+  "version": "4.4.0",
+  "description": "Audio library, track editing, collections and USB sync for Studio Pocket",
+  "author": "Lindsey Schultz and Pocket Drop contributors",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "app/main.mjs",
+  "workspaces": [
+    "vendor/library-format",
+    "vendor/sync-engine"
+  ],
+  "scripts": {
+    "build": "tsc -b vendor/library-format vendor/sync-engine",
+    "start": "electron .",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "dist:mac": "npm run build && electron-builder --mac zip --x64 --publish never",
+    "dist:linux": "npm run build && electron-builder --linux dir --x64",
+    "dist:mac:intel": "npm run build && electron-builder --mac zip --x64 --publish never",
+    "dist:mac:apple-silicon": "python3 scripts/package-apple-silicon.py",
+    "pack:mac:apple-silicon": "npm run build && electron-builder --mac dir --arm64 --publish never"
+  },
+  "dependencies": {
+    "@studio-pocket/library-format": "*",
+    "@studio-pocket/sync-engine": "*",
+    "ogg-opus-decoder": "1.6.16",
+    "plist": "3.1.0",
+    "yauzl": "3.4.0",
+    "music-metadata": "12.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.0",
+    "electron": "38.8.6",
+    "electron-builder": "26.8.1",
+    "playwright": "1.58.2",
+    "sharp": "0.34.5",
+    "typescript": "5.9.3",
+    "yazl": "3.3.1"
+  },
+  "build": {
+    "appId": "app.pocketdrop.desktop",
+    "productName": "Pocket Drop",
+    "copyright": "Pocket Drop by Lindsey Schultz; Studio Pocket \u00a9 Ashworth Digital Ltd",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "app/**",
+      "ui/**",
+      "assets/**",
+      "vendor/*/dist/**",
+      "vendor/*/package.json",
+      "vendor/*/LICENSE",
+      "vendor/*/COPYING.commercial",
+      "LICENSE",
+      "THIRD-PARTY.md",
+      "README.md",
+      "package.json",
+      "vendor/COPYING.commercial",
+      "!vendor/*/dist/*.test.*",
+      "!node_modules/@studio-pocket/library-format/fixtures/**",
+      "!assets/icon-source.png",
+      "!assets/icon.icns",
+      "!assets/icon.svg",
+      "!assets/signing/**",
+      "!node_modules/ogg-opus-decoder/dist/**",
+      "!node_modules/opus-decoder/dist/**",
+      "!assets/tools/**",
+      "CHANGELOG.md"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "minimumSystemVersion": "12.0.0",
+      "icon": "assets/icon.icns",
+      "identity": null,
+      "target": [
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "extraResources": [
+        {
+          "from": "assets/tools/7zz-darwin-${arch}",
+          "to": "tools/7zz"
+        }
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "category": "AudioVideo",
+      "extraResources": [
+        {
+          "from": "assets/tools/7zz-linux",
+          "to": "tools/7zz"
+        }
+      ]
+    },
+    "artifactName": "Pocket-Drop-${version}-${os}-${arch}.${ext}",
+    "publish": [],
+    "electronLanguages": [
+      "en",
+      "en-US",
+      "en-GB"
+    ],
+    "asarUnpack": [
+      "app/opus-worker.mjs",
+      "node_modules/ogg-opus-decoder/**",
+      "node_modules/opus-decoder/**",
+      "node_modules/codec-parser/**",
+      "node_modules/@wasm-audio-decoders/common/**",
+      "node_modules/@eshaz/web-worker/**",
+      "node_modules/simple-yenc/**"
+    ],
+    "afterPack": "scripts/after-pack.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/greenmamabug/pocket-drop.git"
+  },
+  "homepage": "https://github.com/greenmamabug/pocket-drop"
+}

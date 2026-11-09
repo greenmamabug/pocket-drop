@@ -1,0 +1,2 @@
+{ "format": "studiopocket-playlist", "formatVersion": 1, "id": "abc", "title": "T", "cover": null, "icon": null,
+  "tracks": [ { "id": "t1", "title": "x", "file": "tracks/t1.opus", "durationMs": 1, "sizeBytes": 1, "sha256": "0000000000000000000000000000000000000000000000000000000000000000", "mimeType": "audio/opus" } ] }

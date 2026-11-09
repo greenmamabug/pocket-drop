@@ -1,0 +1,10 @@
+node_modules/
+release/
+*.log
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+__pycache__/
+.idea/
+.vscode/

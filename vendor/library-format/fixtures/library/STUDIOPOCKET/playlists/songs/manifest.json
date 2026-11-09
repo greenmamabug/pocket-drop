@@ -1,0 +1,32 @@
+{
+  "format": "studiopocket-playlist",
+  "formatVersion": 1,
+  "id": "songs",
+  "title": "Silly songs",
+  "source": {
+    "kind": "local"
+  },
+  "cover": "cover.jpg",
+  "icon": null,
+  "tracks": [
+    {
+      "id": "song-1",
+      "title": "The E song",
+      "file": "tracks/song-1.mp3",
+      "durationMs": 2063,
+      "sizeBytes": 12608,
+      "sha256": "f1bc7f187cc9575eded0edef4ae1a69e46a85df9d53304bc6107edad9a3d4acd",
+      "mimeType": "audio/mpeg",
+      "icon": "icons/song-1.png"
+    },
+    {
+      "id": "song-2",
+      "title": "The AAC song",
+      "file": "tracks/song-2.m4a",
+      "durationMs": 2000,
+      "sizeBytes": 13480,
+      "sha256": "f2af460c9e818a02c6dbc13b8f477807bc6b2acce8927f47a15ee7a46dfa4702",
+      "mimeType": "audio/mp4"
+    }
+  ]
+}
