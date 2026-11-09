@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { createHash } from 'node:crypto';
 import yauzl from 'yauzl';
+import {numberedLayout,numberedMetadata} from './numbered-archive.mjs';
 import {openSevenZip} from './seven-zip.mjs';
 import {isAudio, byAudioPath, audioPrefix, folderTitle, flexibleMetadata} from './flexible-audio.mjs';
 import { playlistSlug } from '../vendor/sync-engine/dist/folder.js';
@@ -129,19 +130,20 @@ export async function inspect(source) {
         try{const mapped=convertChrome({prefix,meta,title:meta.title},names);if(mapped.tracks.length===audioFiles.length)format='chrome';}catch{/* Incomplete card details are optional; use the audio itself. */}
       }
     }
-    const inferred=audioPrefix(audioFiles);
+    const numbered=numberedLayout(names);if(format==='folder'&&numbered){format='numbered';prefix='';}
+    const inferred=format==='numbered'?numbered.prefix:audioPrefix(audioFiles);
     const title=(typeof meta?.title==='string'&&meta.title.trim())||folderTitle(source,inferred,(await fs.lstat(source)).isDirectory());
     const coverPrefix=format==='folder'?inferred:prefix;
     const declared=typeof meta?.cover==='string'?prefix+safeName(meta.cover):null;
-    const preferred=names.filter(n=>/(^|\/)(cover|front|folder|artwork)\.(png|jpe?g|webp)$/i.test(n)&&!/(^|\/)(icons?|thumbnails?)\//i.test(n)).sort((a,b)=>a.split('/').length-b.split('/').length||byAudioPath(a,b));
-    const candidates=[declared,...['cover.png','cover.jpg','cover.jpeg','cover.webp','cover/cover.png','cover/cover.jpg'].map(n=>coverPrefix+n),...preferred];
+    const preferred=names.filter(n=>/(^|\/)(cover|cover_image|front|folder|artwork)\.(png|jpe?g|webp)$/i.test(n)&&!/(^|\/)(icons?|thumbnails?)\//i.test(n)).sort((a,b)=>a.split('/').length-b.split('/').length||byAudioPath(a,b));
+    const candidates=[format==='numbered'?numbered.coverName:null,declared,...['cover.png','cover.jpg','cover.jpeg','cover.webp','cover/cover.png','cover/cover.jpg'].map(n=>coverPrefix+n),...preferred];
     let cover=null,coverName=null;
     for(const name of [...new Set(candidates.filter(Boolean))]){
       const entry=a.entries.find(e=>e.name===name);if(!entry||entry.size>LIMITS.image)continue;
       const b=await a.read(name,LIMITS.image);const mime=b[0]===137?'image/png':b[0]===255?'image/jpeg':b.toString('ascii',8,12)==='WEBP'?'image/webp':null;
       if(mime){cover=`data:${mime};base64,${b.toString('base64')}`;coverName=name;break;}
     }
-    return {title,format,prefix:format==='folder'?'':prefix,meta:format==='folder'?null:meta,cover,coverName,audioFiles,opusFiles:audioFiles.filter(n=>/\.opus$/i.test(n)),fileCount:audioFiles.length,size:a.entries.reduce((n,e)=>n+e.size,0)};
+    return {title,format,numbered:format==='numbered'?numbered:null,notes:format==='numbered'?numbered.notes:[],prefix:format==='folder'?'':prefix,meta:['folder','numbered'].includes(format)?null:meta,cover,coverName,audioFiles,opusFiles:audioFiles.filter(n=>/\.opus$/i.test(n)),fileCount:audioFiles.length,size:a.entries.reduce((n,e)=>n+e.size,0)};
   } finally{a.close();}
 }
 export function convertChrome(info,names) {
@@ -158,7 +160,7 @@ export function convertChrome(info,names) {
   if(used.size!==audio.length)throw new Error('Some local audio files have no chapter metadata; nothing was skipped.');
   return {format:'myo-studio-archive',title:info.title,...(info.coverName?{cover:info.coverName.slice(info.prefix.length)}:{}),tracks};
 }
-export async function prepare(source,{convertOpus=false,conversionCache,onConversion=()=>{},cancelled=()=>false,encode,onTiming,editPlan}={}) {
+export async function prepare(source,{convertOpus=false,conversionCache,onConversion=()=>{},cancelled=()=>false,encode,onTiming,editPlan,normalizeIcon}={}) {
   const info=await inspect(source);const a=await openArchive(source);let extracted;
   try {extracted=await a.extract();}finally{a.close();}
   try{
@@ -187,11 +189,25 @@ export async function prepare(source,{convertOpus=false,conversionCache,onConver
       deps={...deps,list:async p=>[...await nodeFolderDeps.list(p),...(p===dir?[{name:'metadata.json',path:metadata,isDir:false}]:[])],read:async(p,max)=>p===metadata?data:nodeFolderDeps.read(p,max)};
     }
     let library, orderNotes=[];
-    if(info.format==='folder'||editPlan){
-      const actualInfo={...info,audioFiles:info.audioFiles.map(n=>convertOpus?n.replace(/\.opus$/i,'.m4a'):n)};
-      const generated=editPlan?{notes:[],metadata:{format:'myo-studio-archive',title:info.title,tracks:editPlan.tracks.filter(t=>!t.excluded).map((t,index)=>{if(!info.audioFiles.includes(t.key))throw new Error('An edited track is missing. Open Audio details to review the changed files.');return{index,title:t.title,audio:convertOpus?t.key.replace(/\.opus$/i,'.m4a'):t.key,...(t.iconKey&&!t.iconKey.startsWith('asset:')?{icon:safeName(t.iconKey)}:{})};})}}:await flexibleMetadata(extracted.root,actualInfo,{cancelled});orderNotes=generated.notes;
+    if(info.format==='folder'||info.format==='numbered'||editPlan){
+      const actualInfo={...info,audioFiles:info.audioFiles.map(n=>convertOpus?n.replace(/\.opus$/i,'.m4a'):n),numbered:info.numbered?{...info.numbered,tracks:info.numbered.tracks.map(t=>({...t,key:convertOpus?t.key.replace(/\.opus$/i,'.m4a'):t.key}))}:null};
+      const generated=editPlan?{notes:[],metadata:{format:'myo-studio-archive',title:info.title,tracks:editPlan.tracks.filter(t=>!t.excluded).map((t,index)=>{if(!info.audioFiles.includes(t.key))throw new Error('An edited track is missing. Open Audio details to review the changed files.');return{index,title:t.title,audio:convertOpus?t.key.replace(/\.opus$/i,'.m4a'):t.key,...(t.iconKey&&!t.iconKey.startsWith('asset:')?{icon:safeName(t.iconKey)}:{})};})}}:info.format==='numbered'?await numberedMetadata(extracted.root,actualInfo,{cancelled}):await flexibleMetadata(extracted.root,actualInfo,{cancelled});orderNotes=generated.notes;
       const aliases=new Map();
       generated.metadata.tracks.forEach((track,i)=>{if(/\.m4b$/i.test(track.audio)){const original=path.join(dir,track.audio);track.audio=`__pocket_drop_audio__/${i}.m4a`;aliases.set(path.join(dir,track.audio),original);}});
+      let iconTemp=null;
+      for(const track of generated.metadata.tracks.filter(t=>t.icon)){
+        const file=path.join(dir,track.icon);if(aliases.has(file))continue;
+        const st=await fs.stat(file);if(st.size>LIMITS.image)throw new Error('Track icon exceeds the 10 MB image limit: '+path.basename(file));
+        const header=await nodeFolderDeps.read(file,24),isPng=header.length===24&&header.readUInt32BE(0)===0x89504e47;
+        if(!isPng)throw new Error('Track icon is not a valid PNG: '+path.basename(file));
+        if(header.readUInt32BE(16)*header.readUInt32BE(20)>50_000_000)throw new Error('Track icon has too many pixels: '+path.basename(file));
+        if(header.readUInt32BE(16)===16&&header.readUInt32BE(20)===16)continue;
+        if(!normalizeIcon)throw new Error('This track image needs 16-pixel conversion. Import it with the Pocket Drop app: '+path.basename(file));
+        if(!iconTemp){iconTemp=await fs.mkdtemp(path.join(os.tmpdir(),'pocket-icons-'));const oldCleanup=extracted.cleanup;const iconRoot=iconTemp;extracted={...extracted,cleanup:async()=>{try{await fs.rm(iconRoot,{recursive:true,force:true});}finally{await oldCleanup();}}};}
+        const target=path.join(iconTemp,aliases.size+'.png');await normalizeIcon(file,target);
+        const result=await nodeFolderDeps.read(target,24);if(result.length!==24||result.readUInt32BE(0)!==0x89504e47||result.readUInt32BE(16)!==16||result.readUInt32BE(20)!==16)throw new Error('Track image conversion did not produce a 16-pixel PNG.');
+        aliases.set(file,target);
+      }
       const metadata=path.join(dir,'metadata.json'),data=Buffer.from(JSON.stringify(generated.metadata));
       const resolve=p=>aliases.get(p)??p;
       // A virtual manifest adapts any nesting to the unchanged upstream engine.
@@ -203,11 +219,11 @@ export async function prepare(source,{convertOpus=false,conversionCache,onConver
         probe:(p,mime)=>nodeFolderDeps.probe(resolve(p),mime),
       };
       library=await buildFolderLibrary(dir,flexibleDeps);
-      for(const playlist of library.playlists)for(const track of playlist.tracks)track.localPath=resolve(track.localPath);
+      for(const playlist of library.playlists)for(const track of playlist.tracks){track.localPath=resolve(track.localPath);if(track.iconPath)track.iconPath=resolve(track.iconPath);}
     } else library=await buildFolderLibrary(dir,deps);
     if(library.playlists.length!==1)throw new Error('Expected exactly one audiobook.');
     const playlist=library.playlists[0];
-    if(info.format==='folder'||editPlan){playlist.manifest.title=info.title;playlist.manifest.id=playlistSlug(info.title);}
+    if(info.format==='folder'||info.format==='numbered'||editPlan){playlist.manifest.title=info.title;playlist.manifest.id=playlistSlug(info.title);}
     if(!playlist.coverPath&&info.coverName&&info.cover){playlist.coverPath=path.join(extracted.root,info.coverName);playlist.manifest.cover=info.cover.startsWith('data:image/png')?'cover.png':info.cover.startsWith('data:image/jpeg')?'cover.jpg':'cover.webp';}
     // Never silently omit unsupported or unlisted audio from MYO downloads.
     if(info.format==='website'&&!editPlan&&playlist.tracks.length!==info.meta.tracks.length)throw new Error('The archive has incomplete chapter data.');

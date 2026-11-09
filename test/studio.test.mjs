@@ -34,6 +34,7 @@ test('track edits reorder, rename, reassign icons, persist across refresh/reopen
     const reloaded=await new Catalog(s.catalog.folder).load();assert.equal(reloaded.get(key).edits.tracks[0].key,'audio/02.mp3');assert.equal(reloaded.get(key).syncedRevision,revision(reloaded.get(key).edits));
     await s.library.scan(true);assert.equal(s.library.rows[0].edited,false);await s.library.transfer([key],'sync',s.library.deviceState.deviceId);assert.equal(s.library.lastResult.counts.unchanged,1);
     const reopened=await s.workspace.open(key);assert.equal(reopened.tracks[0].title,'New opening');assert.equal(reopened.tracks[0].iconKey,'icons/one.png');
+    await sharp({create:{width:16,height:16,channels:3,background:'#aabbcc'}}).png().toFile(path.join(s.folder,'icons','one.png'));await s.library.scan(true);await s.library.scan(true);assert.equal(s.library.rows[0].edited,true);assert.equal(s.library.rows[0].status,'update');await s.library.transfer([key],'sync',s.library.deviceState.deviceId);assert.equal(s.library.rows[0].edited,false);assert.deepEqual(await fs.readFile(iconFile),await fs.readFile(path.join(s.folder,'icons','one.png')));
   }finally{await s.cleanup();}
 });
 test('excluded unsupported tracks never convert or sync; originals remain, and every track cannot be excluded',async()=>{
@@ -60,7 +61,7 @@ test('player collections preserve unrelated groups and listening history, update
 test('offline preparation is independent of device busy state and removal undo restores only the same unchanged source/player',async()=>{
   const s=await setup();try{
     const key=s.library.rows[0].key,id=s.library.deviceState.deviceId;s.library.deviceState={connected:false};await s.workspace.prepareAudio([key]);assert.equal(s.library.busy,false);assert.ok(s.library.preparation.running);await s.workspace.preparingTask;assert.equal(s.library.preparation.phase,'Audio is ready to sync');assert.ok(s.catalog.get(key).prepared);
-    await s.library.scan(true);await s.library.transfer([key],'sync',id);await s.library.transfer([key],'remove',id);assert.ok(s.catalog.data.undo.items.length);await s.workspace.undoRemoval();assert.equal((await checkLibrary(s.device.root)).playlists.length,1);assert.equal(s.catalog.data.undo,null);
+    await s.library.scan(true);await s.library.transfer([key],'sync',id);assert.equal(s.library.rows[0].prepared,true);await s.library.transfer([key],'remove',id);assert.ok(s.catalog.data.undo.items.length);await s.workspace.undoRemoval();assert.equal((await checkLibrary(s.device.root)).playlists.length,1);assert.equal(s.catalog.data.undo,null);
     await s.library.transfer([key],'remove',id);s.library.deviceState.deviceId='different';await assert.rejects(s.workspace.undoRemoval(),/same Pocket/);s.library.deviceState.deviceId=id;await fs.appendFile(path.join(s.folder,'audio','01.mp3'),'changed');await assert.rejects(s.workspace.undoRemoval(),/changed since/);
   }finally{await s.cleanup();}
 });

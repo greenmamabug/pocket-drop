@@ -2,6 +2,8 @@
 
 ## 4.4.0
 
+Numbered archives now import audio_files/ in numeric order, pair images/1.png and images/2.png with the matching files, use images/cover_image.png as both library and player cover, and ignore card.txt/tracks.txt. Larger numbered icons are normalized to 16-pixel PNGs without modifying originals.
+
 1. Audio details lists tracks, supports drag or arrow reordering, renaming, reversible deletion from the edited version, and reassignment of original or imported track icons.
 2. Audio previews provide play/pause, seeking, and volume controls through a private, range-capable local media protocol.
 3. Audio item titles can be edited without changing Inbox names or playlist identity on Pocket.

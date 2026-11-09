@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {inspect,openArchive,fingerprint,tree,safeName,convertChrome} from './archive.mjs';
 import {flexibleMetadata,byAudioPath} from './flexible-audio.mjs';
 import {nodeFolderDeps} from '../vendor/sync-engine/dist/folder-node.js';
+import {numberedMetadata} from './numbered-archive.mjs';
 import {text} from './catalog.mjs';
 
 export async function trackDocument(source){
@@ -14,11 +15,12 @@ export async function trackDocument(source){
     let metadata,prefix=info.prefix;
     if(info.format==='chrome')metadata=convertChrome(info,(await tree(extracted.root)).map(f=>f.name));
     else if(info.format==='website')metadata=info.meta;
+    else if(info.format==='numbered'){metadata=(await numberedMetadata(extracted.root,info)).metadata;prefix='';}
     else{metadata=(await flexibleMetadata(extracted.root,info)).metadata;prefix='';}
     const ordered=[...metadata.tracks].sort((a,b)=>a.index-b.index),audio=info.audioFiles.filter(n=>n.startsWith(prefix+'audio/')).sort(byAudioPath);
     const names=(await tree(extracted.root)).filter(f=>/\.png$/i.test(f.name)&&f.size<=10*1024**2);
     const icons=[];
-    for(const file of names){const b=await nodeFolderDeps.read(path.join(extracted.root,file.name),24);if(b.length===24&&b.readUInt32BE(0)===0x89504e47&&b.readUInt32BE(16)===16&&b.readUInt32BE(20)===16)icons.push(file.name);}
+    for(const file of names){if(info.format==='numbered'&&file.name===info.coverName)continue;const b=await nodeFolderDeps.read(path.join(extracted.root,file.name),24);if(b.length===24&&b.readUInt32BE(0)===0x89504e47&&((b.readUInt32BE(16)===16&&b.readUInt32BE(20)===16)||info.numbered?.images.includes(file.name)))icons.push(file.name);}
     const numberedIcons=icons.filter(n=>n.startsWith(prefix+'icons/')).sort(byAudioPath);
     const tracks=ordered.map((t,i)=>({key:typeof t.audio==='string'?prefix+safeName(t.audio):audio[i],title:t.title,iconKey:typeof t.icon==='string'&&icons.includes(prefix+t.icon)?prefix+t.icon:metadata.format!=='myo-studio-archive'&&numberedIcons.length===ordered.length?numberedIcons[i]:null,excluded:false}));
     if(!tracks.length||tracks.length>500||new Set(tracks.map(t=>t.key)).size!==tracks.length||tracks.some(t=>!info.audioFiles.includes(t.key)))throw new Error('Cannot match every track to an audio file.');
@@ -38,7 +40,7 @@ export class Editor{
     this.sessions.set(id,session);
     const icons=doc.icons.map(key=>({key,url:this.url(path.join(doc.root,key),id),name:path.posix.basename(key)}));
     for(const key of session.allowedAssets)if(tracks.some(t=>t.iconKey===key))icons.push({key,url:this.url(this.asset(key),id),name:'Custom icon'});
-    return{id,rowKey:row.key,title:prior?.title||row.title,tags:saved.tags??[],cover:prior?.coverRef?this.url(this.asset(prior.coverRef),id):doc.info.cover,coverRef:prior?.coverRef??null,coverMode:prior?.coverMode??'fit',coverPosition:prior?.coverPosition??50,icons,tracks:tracks.map(t=>({...t,url:this.url(path.join(doc.root,t.key),id),filename:path.posix.basename(t.key)})),defaults:{title:doc.info.title,tracks:doc.tracks,cover:doc.info.cover},canTrashOriginals:doc.isFolder,notice:prior&&(prior.tracks.length!==doc.tracks.length||prior.tracks.some(t=>!doc.tracks.some(n=>n.key===t.key)))?'The source files changed. Review this track list before saving.':null};
+    return{id,rowKey:row.key,title:prior?.title||row.title,tags:saved.tags??[],cover:prior?.coverRef?this.url(this.asset(prior.coverRef),id):doc.info.cover,coverRef:prior?.coverRef??null,coverMode:prior?.coverMode??'fit',coverPosition:prior?.coverPosition??50,icons,tracks:tracks.map(t=>({...t,url:this.url(path.join(doc.root,t.key),id),filename:path.posix.basename(t.key)})),defaults:{title:doc.info.title,tracks:doc.tracks,cover:doc.info.cover},canTrashOriginals:doc.isFolder,notice:prior&&(prior.tracks.length!==doc.tracks.length||prior.tracks.some(t=>!doc.tracks.some(n=>n.key===t.key)))?'The source files changed. Review this track list before saving.':doc.info.notes?.join(' ')||null};
   }
   session(id){const s=this.sessions.get(id);if(!s)throw new Error('Audio details expired. Reopen the item.');return s;}
   async save(id,input){

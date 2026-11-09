@@ -64,7 +64,7 @@ export class Library extends EventEmitter{
           if(known)Object.assign(base,known.row);
           else{
             const info=await inspect(source);if(this.stopRequested)return;
-            base.title=info.title;base.id=playlistSlug(info.title);base.size=info.size;base.cover=info.cover?await this.thumbnail(info.cover):null;
+            base.notes=info.notes;base.title=info.title;base.id=playlistSlug(info.title);base.size=info.size;base.cover=info.cover?await this.thumbnail(info.cover):null;
             base.searchTracks=info.meta?.tracks?.map(t=>t.title)??info.meta?.chapters?.map(t=>t.title)??info.audioFiles.map(n=>path.basename(n));base.opusCount=info.opusFiles.length;base.tracks=info.meta?.tracks?.length??info.meta?.chapters?.length??info.fileCount??0;base.unverified=true;
           }
           if(this.stopRequested)return;
@@ -133,7 +133,7 @@ export class Library extends EventEmitter{
         if(kind==='remove'){
           const items=selected.filter(r=>r.local&&result.removed.includes(r.id)).map(r=>({key:r.key,id:r.id,title:r.title,fp:this.cache.get(path.join(this.inbox,r.source))?.fp,revision:revision(this.catalog.get(r.key).edits)}));
           this.catalog.data.undo={deviceId:expectedDeviceId,items};await this.catalog.save();
-        }else for(const row of selected)if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{syncedRevision:revision(this.catalog.get(row.key).edits),prepared:true});
+        }else for(const row of selected)if(!result.skipped.some(s=>s.id===row.id))await this.catalog.set(row.key,{syncedRevision:revision(this.catalog.get(row.key).edits),syncedFingerprint:this.cache.get(path.join(this.inbox,row.source))?.fp,prepared:{fp:this.cache.get(path.join(this.inbox,row.source))?.fp,editRevision:revision(this.catalog.get(row.key).edits),bytes:row.preparedBytes}});
       }
       this.lastResult={...transferResult(selected,result,kind),id:randomUUID()};for(const row of selected){row.onDevice=kind!=='remove';row.status=kind==='remove'?'ready':'current';}
       completed=true;

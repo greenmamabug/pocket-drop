@@ -10,7 +10,7 @@ import {fingerprint} from './archive.mjs';
 export const DOWNLOADS='https://github.com/greenmamabug/pocket-drop/releases';
 
 export async function installStudio({app,win,library,catalog,config,save,handle,idle,dialog,shell,nativeImage,Notification,protocol,net}){
-  const notify=(title,body)=>{if(config.completionNotifications&&(!win.isFocused()||!win.isVisible())&&Notification.isSupported()){const notification=new Notification({title,body});notification.on('click',()=>{win.show();win.focus();});notification.show();}};
+  const notify=(title,body)=>{if(config.completionNotifications&&(!win.isFocused()||!win.isVisible())&&Notification.isSupported()){const notification=new Notification({title,body});notification.on('click',()=>{win.show();win.focus();app.dock?.show();});notification.show();}};
   const renderCover=async(ref,edits)=>{
     const source=workspace.editor.asset(ref),image=nativeImage.createFromPath(source);if(image.isEmpty())throw new Error('The selected cover cannot be read.');
     const size=image.getSize();let output=image;

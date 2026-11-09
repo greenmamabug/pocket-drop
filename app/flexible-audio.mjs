@@ -24,7 +24,7 @@ export function audioPrefix(names) {
 }
 export function folderTitle(source, prefix, isDirectory) {
   const parts = prefix.split('/').filter(Boolean);
-  while (parts.length && /^(audio|music|tracks?|chapters?|files|cd[\s_-]*\d+|dis[ck][\s_-]*\d+|part[\s_-]*\d+)$/i.test(parts.at(-1))) parts.pop();
+  while (parts.length && /^(audio|audio[_ -]?files|music|tracks?|chapters?|files|cd[\s_-]*\d+|dis[ck][\s_-]*\d+|part[\s_-]*\d+)$/i.test(parts.at(-1))) parts.pop();
   return parts.at(-1) || path.basename(source).replace(isDirectory ? /$^/ : /\.(zip|7z)$/i, '');
 }
 

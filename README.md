@@ -22,6 +22,19 @@ These builds have no Apple Developer ID signature or notarization. The Apple Sil
 
 Download MYO Studio audio from [www.myostudio.app](https://www.myostudio.app), choosing **Actions → Download → Full Archive**, and save it directly into **Downloads/Pocket Drop Inbox**. You don't need to unzip ZIP or 7z archives. Add Files copies archives from elsewhere into the Inbox and keeps their originals. Folders can be placed in the Inbox too, with audio in nested disc/track folders. Each top-level Inbox item is one audio item.
 
+The numbered archive layout is recognized directly, in ZIPs, 7z archives or extracted folders:
+
+```text
+audio_files/          numbered audio files (1, 2, 10...)
+images/1.png          icon for audio file 1
+images/2.png          icon for audio file 2
+images/cover_image.png  the card cover in the library and on Pocket
+card.txt              ignored
+tracks.txt            ignored
+```
+
+Numbered audio order takes precedence over embedded track-number tags in this layout. Leading zeros are allowed (01 matches 1.png). Titles use embedded titles or audio filenames. Larger numbered PNG icons are converted into 16-pixel player icons in temporary storage; the originals stay unchanged. Ambiguous or missing icon numbers can be reviewed in Audio details. Nested archive wrappers are supported. Metadata discovery is refreshed on upgrade so an older cached interpretation does not hide the new layout.
+
 Track-list and card-detail files are optional. Complete MYO metadata supplies titles, order and icons. Other imports use complete, unique embedded disc/track tags or natural numeric folder/file order (2 before 10). If those clues do not describe the intended order, click an item's title to open **Audio details**:
 
 - Drag tracks or use the arrows to reorder; rename tracks and the audio item.
