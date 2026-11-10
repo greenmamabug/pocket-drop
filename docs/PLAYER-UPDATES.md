@@ -68,8 +68,7 @@ and the original per-player backup. The GUI does not perform a stock restore.
 ## Maintainer boundaries
 
 - `player-release`: fixed release provenance, bounded downloads, streamed hash
-  verification and cache reuse. Native tool archives are freshly extracted from
-  the hash-checked originals for each device operation.
+  verification and cache reuse. Packaged Mac apps verify a signed in-app native runtime manifest and reuse that runtime across operations. Development runs use freshly extracted hash-checked archives.
 - `player-task` / `player-worker` / `player-runner`: isolated process, native tool
   execution and the vendor firmware engine. No shell, arbitrary download URL,
   unchecked signer or agent override is exposed through IPC.
@@ -87,3 +86,7 @@ flashed during these automated tests. Hardware install/retry/unplug behavior
 still needs verification with a disposable test player and its original backup.
 
 A failed capability probe previously discarded non-Studio-Pocket output, so a crashed or slow tool could be reported as missing identity-check support. 4.7.2 preflights in the real helper and retains the tool's stderr. The same exact capability answer and successful exit are required; absence, failure, and timeout all stop the operation. The binary is still the pinned official upstream archive. This change is not a confirmed fix for every Monterey-specific startup/USB failure.
+
+## Mac runtime packaging (4.7.3)
+
+The Monterey process sample showed the helper in dyld mapping its Python runtime before the updater’s capability reply. Mac builds now package the pinned runtime inside Pocket Drop.app and sign its native libraries/frameworks before sealing the app. A post-signing file manifest verifies all files, modes and internal symlinks before use. New private working directories contain operation scratch data; the executable/runtime remain at a stable signed path. Test the actual signed executable and separate helper processes, not just the development Electron executable importing an ASAR. The release includes matching GPL/LGPL sources and build scripts. No signature/identity guard is bypassed, and no Gatekeeper setting is changed.

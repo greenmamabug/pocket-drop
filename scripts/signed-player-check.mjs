@@ -21,13 +21,26 @@ console.log(
   }),
 );
 try {
-  const result = await new PlayerRunner().run(
-    { action: 'download', cache: root, arch: 'x64' },
-    (event) => {
-      if (event.line || event.label) console.log(event.line || event.label);
-    },
-  );
-  assert.equal(result.toolIdentityVerified, true);
+  const requireBundled = process.argv.includes('--require-bundled');
+  let runtimePath;
+  for (let attempt = 0; attempt < (requireBundled ? 2 : 1); attempt++) {
+    const result = await new PlayerRunner().run(
+      { action: 'download', cache: root, arch: 'x64' },
+      (event) => {
+        if (event.line || event.label) console.log(event.line || event.label);
+      },
+    );
+    assert.equal(result.toolIdentityVerified, true);
+    if (requireBundled) {
+      assert.equal(result.toolSource, 'bundled');
+      assert.ok(
+        result.runtimePath.includes('Pocket Drop.app/Contents/Resources/firmware-tools/mtk'),
+      );
+      if (runtimePath) assert.equal(result.runtimePath, runtimePath);
+      runtimePath = result.runtimePath;
+      console.log('Verified bundled runtime at the same path, attempt', attempt + 1);
+    }
+  }
   console.log(
     'PASS: signed executable and packaged isolated helper verified native identity capability without a player.',
   );

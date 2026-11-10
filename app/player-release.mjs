@@ -59,7 +59,8 @@ export async function downloadAsset(folder, asset, { fetcher = fetch, progress =
   try {
     arm();
     const response = await fetcher(
-      'https://github.com/MYO-Studio/studio-pocket/releases/download/v0.7.0/' + asset.name,
+      asset.url ??
+        'https://github.com/MYO-Studio/studio-pocket/releases/download/v0.7.0/' + asset.name,
       { signal: abort.signal },
     );
     if (!response.ok || !response.body)

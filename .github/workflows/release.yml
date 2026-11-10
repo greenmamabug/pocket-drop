@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing version tag to build
         required: true
-        default: v4.7.2
+        default: v4.7.3
   push:
     tags: ['v*']
 
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.7.2' }}
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.7.3' }}
 
 jobs:
   test:
@@ -97,6 +97,8 @@ jobs:
         run: node scripts/studio-desktop-check.mjs
         env:
           POCKET_PLAYER_TOOL_CHECK: '1'
+      - name: Stage pinned native updater tools and corresponding sources
+        run: node scripts/assemble-player-tools.mjs "$BUILD_ARCH"
       - name: Package application
         run: npm exec -- electron-builder --mac dir --"$BUILD_ARCH" --config.electronDist=node_modules/electron/dist --publish never
       - name: Verify updater inside the packaged Intel app without a device
@@ -119,17 +121,31 @@ jobs:
           for item in sorted(app.rglob('*'), key=lambda p: len(p.parts), reverse=True):
               if item.is_file() and not item.is_symlink():
                   with item.open('rb') as f:
-                      magic = f.read(4)
-                  if magic == b'\xcf\xfa\xed\xfe':
+                      header = f.read(8)
+                  magic = header[:4]
+                  thin = magic in {b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xfe\xed\xfa\xce'}
+                  fat = magic in {b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca', b'\xca\xfe\xba\xbf', b'\xbf\xba\xfe\xca'}
+                  if thin or (fat and 0 < int.from_bytes(header[4:8], 'little' if magic in {b'\xbe\xba\xfe\xca', b'\xbf\xba\xfe\xca'} else 'big') < 16):
                       sign(item)
           for item in sorted(app.rglob('*.framework'), key=lambda p: len(p.parts), reverse=True):
               if not item.is_symlink():
                   sign(item)
           for item in sorted(app.rglob('*.app'), key=lambda p: len(p.parts), reverse=True):
               sign(item, 'plugin.plist' if '(Plugin)' in item.name else 'jit.plist')
+          subprocess.run(['node', 'scripts/player-bundle-manifest.mjs', str(app / 'Contents/Resources/firmware-tools'), arch], check=True)
           sign(app, 'jit.plist')
           subprocess.run(['codesign', '--verify', '--deep', '--strict', '--verbose=2', str(app)], check=True)
           PY
+      - name: Verify actual signed executable and stable bundled updater runtime
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: |
+          'release/mac/Pocket Drop.app/Contents/MacOS/Pocket Drop' "$GITHUB_WORKSPACE/scripts/signed-player-check.mjs" "$GITHUB_WORKSPACE/release/mac/Pocket Drop.app/Contents/Resources/app.asar/app/main.mjs" --require-bundled
+      - uses: actions/upload-artifact@v4
+        with:
+          name: player-tool-sources
+          path: release/player-tool-sources/*
+          retention-days: 14
       - name: Create download
         run: |
           if test "$BUILD_ARCH" = arm64; then APP_DIR=release/mac-arm64; else APP_DIR=release/mac; fi
@@ -159,11 +175,15 @@ jobs:
           pattern: mac-*
           path: release
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: player-tool-sources
+          path: release
       - name: Include corresponding source and checksums
         run: |
           git archive --format=zip --prefix="Pocket-Drop-${RELEASE_TAG#v}/" --output="release/Pocket-Drop-${RELEASE_TAG#v}-source.zip" HEAD
           cd release
-          sha256sum *.zip > "SHA256SUMS-${RELEASE_TAG#v}.txt"
+          sha256sum *.zip *.tar.gz *.tar.bz2 > "SHA256SUMS-${RELEASE_TAG#v}.txt"
       - name: Upload verified files to draft release
         env:
           GH_TOKEN: ${{ github.token }}

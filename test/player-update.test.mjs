@@ -524,3 +524,47 @@ test('a failed USB startup preflight stops before any player read or write', () 
     );
     assert.equal(called, false);
   }));
+
+test('packaged updater uses verified bundled tools and does not extract or delete them between operations', () =>
+  temporary(async (root) => {
+    const bundle = { e2fs: path.join(root, 'signed e2fs'), mtk: path.join(root, 'signed mtk') };
+    await fs.mkdir(bundle.mtk);
+    await fs.mkdir(bundle.e2fs);
+    const files = [];
+    const deps = {
+      api: {
+        inspectApkFile: async () => ({}),
+        acceptApk: () => ({ ok: true, signerSha256: PLAYER_SIGNER }),
+      },
+      platform: {},
+      findBundle: async () => bundle,
+      download: async (folder, asset) => {
+        files.push(asset.name);
+        await fs.mkdir(folder, { recursive: true });
+        return path.join(folder, asset.name);
+      },
+      extract: async () => {
+        throw new Error('must not extract bundled native tools');
+      },
+      checkTool: async (binary, cwd) => {
+        assert.equal(binary, path.join(bundle.mtk, 'mtk'));
+        assert.ok(cwd.includes('session-'));
+      },
+    };
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await executePlayerTask(
+        { action: 'download', arch: 'x64', cache: path.join(root, 'cache') },
+        () => {},
+        deps,
+      );
+      assert.equal(result.toolSource, 'bundled');
+      assert.equal(result.runtimePath, bundle.mtk);
+      assert.ok((await fs.stat(bundle.mtk)).isDirectory());
+    }
+    assert.deepEqual(files, [PLAYER_ASSETS.apk.name, PLAYER_ASSETS.apk.name]);
+    assert.equal(
+      (await fs.readdir(path.join(root, 'cache', '0.7.0'))).filter((n) => n.startsWith('session-'))
+        .length,
+      0,
+    );
+  }));

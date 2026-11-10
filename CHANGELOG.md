@@ -1,3 +1,12 @@
+# 4.7.3 — stable, signed player-updater runtime
+
+- Address the runtime-loading path identified in the Monterey process sample: dyld was spending nearly all sampled time mapping the bundled Python library, before USB communication.
+- Include pinned mtkclient/Python and e2fsprogs runtime files inside the Mac app. Sign the native libraries/frameworks and seal their post-signing manifest into the outer app.
+- Verify and reuse the same runtime path across separate updater operations instead of extracting/deleting fresh executable files for each attempt. Refuse missing, modified or redirected runtime files before execution.
+- Keep the exact identity capability response, hardware-ID gate, signed APK checks, backup reuse, explicit WRITE confirmation and full readback verification.
+- Test the actual signed app executable twice, asserting it selects the bundled runtime and retains the same runtime path. Publish corresponding GPL/LGPL sources alongside the app.
+- This packaging change targets the loader behavior in the supplied macOS12.7.6 sample. The affected physical Mac still needs to confirm successful startup; this is not a timeout increase or a verified universal macOS fix.
+
 # 4.7.2 — USB updater startup and existing backups
 
 - Verify the actual USB updater capability inside the isolated helper before reading or preparing a player. Check update files also verifies native tool startup, without opening a device.

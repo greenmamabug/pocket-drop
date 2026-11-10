@@ -7,6 +7,7 @@ import * as engine from '../vendor/firmware-tools/dist/index.js';
 import { nodePlatform } from '../vendor/firmware-tools/dist/node.js';
 import { validateBackupFolder, savedPlayerBackup } from './player-backups.mjs';
 import { checkPlayerTool, playerPlatform } from './player-tool-check.mjs';
+import { locatePlayerBundle } from './player-bundle.mjs';
 import { PLAYER_ASSETS, PLAYER_SIGNER, PLAYER_VERSION, downloadAsset } from './player-release.mjs';
 
 const exec = promisify(execFile);
@@ -57,6 +58,7 @@ export async function executePlayerTask(
     extract = exec,
     statfs = fs.statfs,
     checkTool = checkPlayerTool,
+    findBundle = locatePlayerBundle,
   } = {},
 ) {
   if (!['download', 'prepare', 'reuse', 'review', 'write'].includes(input.action))
@@ -114,7 +116,10 @@ export async function executePlayerTask(
       throw new Error('The backup folder moved. Choose it again before updating.');
   }
   const files = {};
-  for (const key of ['apk', 'e2fs', input.arch]) {
+  emit({ label: 'Verifying updater tools', percent: null });
+  const bundle = await findBundle(input.arch);
+  if (bundle) log('Using the signed updater runtime inside Pocket Drop.');
+  for (const key of bundle ? ['apk'] : ['apk', 'e2fs', input.arch]) {
     emit({ label: 'Checking update files', percent: null });
     files[key] = await download(cache, PLAYER_ASSETS[key], { progress });
   }
@@ -143,13 +148,15 @@ export async function executePlayerTask(
   const tools = await fs.mkdtemp(path.join(cache, 'session-'));
   const previousTools = [process.env.STUDIO_POCKET_E2FS_DIR, process.env.STUDIO_POCKET_MTK_BIN];
   try {
-    const e2fs = path.join(tools, 'e2fs'),
-      mtk = path.join(tools, 'mtk');
-    await fs.mkdir(e2fs);
-    await fs.mkdir(mtk);
-    // Only fixed, hash-checked upstream archives are ever extracted, into a private fresh directory.
-    await extract('/usr/bin/tar', ['-xzf', files.e2fs, '--no-same-owner', '-C', e2fs]);
-    await extract('/usr/bin/tar', ['-xzf', files[input.arch], '--no-same-owner', '-C', mtk]);
+    const e2fs = bundle?.e2fs ?? path.join(tools, 'e2fs'),
+      mtk = bundle?.mtk ?? path.join(tools, 'mtk');
+    if (!bundle) {
+      await fs.mkdir(e2fs);
+      await fs.mkdir(mtk);
+      // Only fixed, hash-checked upstream archives are ever extracted, into a private fresh directory.
+      await extract('/usr/bin/tar', ['-xzf', files.e2fs, '--no-same-owner', '-C', e2fs]);
+      await extract('/usr/bin/tar', ['-xzf', files[input.arch], '--no-same-owner', '-C', mtk]);
+    }
     process.env.STUDIO_POCKET_E2FS_DIR = e2fs;
     process.env.STUDIO_POCKET_MTK_BIN = path.join(mtk, 'mtk');
     emit({ label: 'Checking the USB updater — older Macs may need a moment', percent: null });
@@ -160,7 +167,12 @@ export async function executePlayerTask(
         emit({ label: 'Checking the download agent', percent: null });
         await api.ensureDownloadAgent(p, input.firmwareDir, log);
       }
-      return { version: PLAYER_VERSION, toolIdentityVerified: true };
+      return {
+        version: PLAYER_VERSION,
+        toolIdentityVerified: true,
+        toolSource: bundle ? 'bundled' : 'downloaded',
+        runtimePath: mtk,
+      };
     }
     if (['prepare', 'reuse'].includes(input.action)) {
       const saved = input.action === 'reuse' ? await savedPlayerBackup(input.firmwareDir) : null;

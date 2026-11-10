@@ -8,7 +8,7 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.7.2](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.2/Pocket-Drop-4.7.2-mac-x64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.7.3](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.3/Pocket-Drop-4.7.3-mac-x64.zip).
 - **Apple Silicon (M-series, previous release):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
@@ -156,3 +156,5 @@ Player-update failures are saved in Recent Activity. In Settings, choose **View 
 To skip repeating a completed player read, choose its backup folder and click **Use existing backup**. Pocket Drop checks the saved image’s size and hash, verifies its signing-key compatibility, and prepares locally. The existing backup reflects player software as it was when read; later software changes are not included. Player identity and full readback verification still apply when writing. A prepared update can also be reopened with **Review saved update** without another backup.
 
 **Check update files** now starts the USB updater inside the same helper used by actual updates, before any player backup or write. Cold startup is allowed up to 90 seconds on older Macs. A failed check shows actual startup output in Details and Recent Activity rather than instructions to rebuild developer scripts. The underlying USB failure may still need diagnosis on the affected Mac; hardware was not available in the build environment.
+
+Mac 4.7.3 includes the updater’s native tools and Python runtime inside the app’s signed bundle. Device operations verify and reuse those files at the same path; they no longer copy that runtime into a new temporary folder on each attempt. The official player APK and MediaTek agent are still downloaded and verified separately. Matching GPL/LGPL source archives and upstream build scripts accompany the release; ordinary users only need the Intel app ZIP. The build uses ad-hoc integrity signatures, not Apple Developer ID notarization.

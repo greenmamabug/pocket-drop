@@ -1,6 +1,6 @@
 {
   "name": "pocket-drop",
-  "version": "4.7.2",
+  "version": "4.7.3",
   "description": "Audio library, track editing, collections and USB sync for Studio Pocket",
   "author": "Lindsey Schultz and Pocket Drop contributors",
   "license": "GPL-3.0-only",
@@ -15,11 +15,11 @@
     "build": "tsc -b vendor/library-format vendor/sync-engine vendor/firmware-tools",
     "start": "electron .",
     "test": "npm run build && node --test test/*.test.mjs",
-    "dist:mac": "npm run build && electron-builder --mac zip --x64 --publish never",
+    "dist:mac": "npm run build && node scripts/assemble-player-tools.mjs x64 && electron-builder --mac zip --x64 --publish never",
     "dist:linux": "npm run build && electron-builder --linux dir --x64",
-    "dist:mac:intel": "npm run build && electron-builder --mac zip --x64 --publish never",
+    "dist:mac:intel": "npm run build && node scripts/assemble-player-tools.mjs x64 && electron-builder --mac zip --x64 --publish never",
     "dist:mac:apple-silicon": "python3 scripts/package-apple-silicon.py",
-    "pack:mac:apple-silicon": "npm run build && electron-builder --mac dir --arm64 --publish never",
+    "pack:mac:apple-silicon": "npm run build && node scripts/assemble-player-tools.mjs arm64 && electron-builder --mac dir --arm64 --publish never",
     "format": "prettier --write app ui test scripts/*.mjs scripts/*.cjs package.json .prettierrc.json .github/workflows/release.yml eslint.config.mjs",
     "format:check": "prettier --check app ui test scripts/*.mjs scripts/*.cjs package.json .prettierrc.json .github/workflows/release.yml eslint.config.mjs",
     "check": "npm run format:check && npm run lint && node scripts/check-syntax.mjs",
@@ -100,6 +100,10 @@
         {
           "from": "assets/tools/7zz-darwin-${arch}",
           "to": "tools/7zz"
+        },
+        {
+          "from": "release/firmware-tools",
+          "to": "firmware-tools"
         }
       ]
     },

@@ -14,6 +14,9 @@ for helper in sorted((root/'Contents/Frameworks').glob('*.app')):
  profile='plugin.plist' if '(Plugin)' in helper.name else 'jit.plist'
  args+=['--entitlements-xml-file',str(helper.relative_to(root))+':'+str(pathlib.Path('assets/signing',profile).resolve())]
 run(args+[str(root)])
+# Recompute native file hashes after signatures change, then seal the outer bundle again.
+run(['node','scripts/player-bundle-manifest.mjs',str(root/'Contents/Resources/firmware-tools'),'arm64'])
+run(args+[str(root)])
 for item in [root,*root.rglob('*')]:
  if item.is_symlink():continue
  item.chmod(0o755 if item.is_dir() or item.stat().st_mode&0o111 else 0o644)
