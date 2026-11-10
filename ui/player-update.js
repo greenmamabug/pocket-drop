@@ -17,6 +17,7 @@ export function installPlayerUpdateUI({ api, guarded, getState }) {
   $('player-read').onclick = guarded(() => request('playerPrepare'));
   $('player-reuse-backup').onclick = guarded(() => request('playerReuseBackup'));
   $('player-review').onclick = guarded(() => request('playerReview'));
+  $('player-connection-test').onclick = guarded(() => request('playerConnectionTest'));
   $('player-eject').onclick = guarded(() => request('eject'));
   $('player-cancel').onclick = guarded(() => request('playerCancel'));
   $('player-write').onclick = guarded(async () => {
@@ -63,6 +64,11 @@ export function installPlayerUpdateUI({ api, guarded, getState }) {
     $('player-get-files').disabled = busy || !p.firmwareDir;
     $('player-get-files').textContent = 'Check update files';
     $('player-read').disabled = busy || !p.firmwareDir || p.pendingWrite;
+    $('player-connection-test').disabled =
+      busy ||
+      !!state.device.connected ||
+      !p.firmwareDir ||
+      (!p.savedBackupId && !p.pendingWrite && !p.hasSavedUpdate);
     $('player-reuse-backup').disabled = busy || !p.savedBackupId || p.pendingWrite;
     $('player-reuse-note').textContent = p.savedBackupId
       ? `Saved backup: player …${p.savedBackupId.slice(-8)}. Verified on your Mac before use; the full player read is skipped.`

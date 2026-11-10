@@ -1,3 +1,12 @@
+# 4.7.4 — read-only connection diagnostics
+
+- Add a device-identity-checked USB diagnostic containing only read commands. It reads 128 MB to disposable Mac files without replacing the saved backup or prepared update. No write retry happens automatically.
+- Keep interrupted-write recovery marked incomplete after a passing read test, and report temporary data verification separately from firmware verification.
+- Preserve recent serial-port presence and raw tool errors for diagnosing repeated transport failures. No firmware transfer protocol or timeout was changed.
+
+- Identify loss of the firmware USB serial connection before secondary Python cleanup errors and retain instructions to retry the saved image.
+- Correct recovery review text: an interrupted player write remains incomplete until a full retry/readback succeeds; do not claim that nothing was written.
+
 # 4.7.3 — stable, signed player-updater runtime
 
 - Address the runtime-loading path identified in the Monterey process sample: dyld was spending nearly all sampled time mapping the bundled Python library, before USB communication.

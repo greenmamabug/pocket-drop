@@ -283,13 +283,41 @@ export class PlayerUpdater {
       this.reviewed(summary);
     });
   }
+  connectionTest() {
+    return this.run('connection-test', async () => {
+      const unitId =
+        this.journal?.unitId ?? (await savedPlayerBackup(this.state.firmwareDir))?.unitId;
+      if (!unitId || !this.state.firmwareDir)
+        throw new Error('Choose the folder with this player’s saved backup first.');
+      if ((await this.library.device.connectionStatus()).connected)
+        throw new Error(
+          'Eject Pocket and power it off before starting the read-only connection test.',
+        );
+      const result = await this.job('connection-test', { unitId });
+      await this.library.log(
+        `Read-only USB test completed: ${Math.round(result.bytesRead / 1024 ** 2)} MB${Number.isFinite(result.transferMs) ? ' in ' + Math.round(result.transferMs / 1000) + ' seconds of reading' : ''}. This does not repair an interrupted update.`,
+        'info',
+      );
+      this.publish({
+        phase: this.journal && !this.journal.completed ? 'resume' : 'idle',
+        connectionTest: result,
+        label:
+          'Read-only USB test completed. This does not repair or verify the earlier interrupted update.',
+        percent: 100,
+        token: null,
+      });
+      return result;
+    });
+  }
   reviewed(summary) {
     this.token = randomUUID();
     this.publish({
       phase: 'prepared',
       summary,
       token: this.token,
-      label: 'Backup saved and update prepared. Nothing has been written to the player.',
+      label: this.journal?.pendingWrite
+        ? 'Saved image verified for retry. The previous player write was incomplete; update and verify it before using the player.'
+        : 'Backup saved and update prepared. Nothing has been written to the player.',
       percent: 100,
     });
   }

@@ -50,7 +50,9 @@ export function installPlayerConnectionGuide() {
         dialog.classList.add('detected');
         $('player-guide-title').textContent = 'Player detected';
         $('player-guide-status').textContent =
-          'Connection detected. Pocket Drop is continuing the update steps.';
+          p.action === 'connection-test'
+            ? 'Connection detected. Continuing the read-only test. No firmware is being written.'
+            : 'Connection detected. Pocket Drop is continuing the update steps.';
         $('player-guide-diagram').hidden = true;
         $('player-guide-success').hidden = false;
         seen = attempt;

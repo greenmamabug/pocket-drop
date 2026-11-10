@@ -8,6 +8,8 @@ import { nodePlatform } from '../vendor/firmware-tools/dist/node.js';
 import { validateBackupFolder, savedPlayerBackup } from './player-backups.mjs';
 import { checkPlayerTool, playerPlatform } from './player-tool-check.mjs';
 import { locatePlayerBundle } from './player-bundle.mjs';
+import { playerWriteFailure } from './player-failure.mjs';
+import { testPlayerConnection } from './player-connection-test.mjs';
 import { PLAYER_ASSETS, PLAYER_SIGNER, PLAYER_VERSION, downloadAsset } from './player-release.mjs';
 
 const exec = promisify(execFile);
@@ -61,7 +63,9 @@ export async function executePlayerTask(
     findBundle = locatePlayerBundle,
   } = {},
 ) {
-  if (!['download', 'prepare', 'reuse', 'review', 'write'].includes(input.action))
+  if (
+    !['download', 'prepare', 'reuse', 'review', 'write', 'connection-test'].includes(input.action)
+  )
     throw new Error('Unknown player operation.');
   if (!['x64', 'arm64'].includes(input.arch)) throw new Error('Unsupported Mac architecture.');
   const progress = (label, bytes, total) =>
@@ -134,15 +138,19 @@ export async function executePlayerTask(
   if (input.action !== 'download') {
     if (!path.isAbsolute(input.firmwareDir)) throw new Error('Choose a backup folder on your Mac.');
     await fs.mkdir(input.firmwareDir, { recursive: true, mode: 0o700 });
-    const disk = await statfs(input.firmwareDir);
+    const disk = await statfs(input.action === 'connection-test' ? cache : input.firmwareDir);
     const initialSpace = ['prepare', 'reuse'].includes(input.action)
       ? 6 * 1024 ** 3
-      : 128 * 1024 ** 2;
+      : input.action === 'connection-test'
+        ? 256 * 1024 ** 2
+        : 128 * 1024 ** 2;
     if (Number(disk.bavail) * Number(disk.bsize) < initialSpace)
       throw new Error(
         ['prepare', 'reuse'].includes(input.action)
           ? 'Keep at least 6 GB free on the Mac before reading/preparing player backups.'
-          : 'Free at least 128 MB on the Mac to review the saved update.',
+          : input.action === 'connection-test'
+            ? 'Free at least 256 MB on the Mac for the temporary read-only connection test.'
+            : 'Free at least 128 MB on the Mac to review the saved update.',
       );
   }
   const tools = await fs.mkdtemp(path.join(cache, 'session-'));
@@ -162,6 +170,19 @@ export async function executePlayerTask(
     emit({ label: 'Checking the USB updater — older Macs may need a moment', percent: null });
     await checkTool(path.join(mtk, 'mtk'), tools, { log });
     const p = playerPlatform(platform, log);
+    if (input.action === 'connection-test') {
+      if (!/^[a-f0-9]{32}$/.test(input.unitId))
+        throw new Error('Choose this player’s backup before testing its connection.');
+      return await testPlayerConnection({
+        platform: p,
+        api,
+        firmwareDir: input.firmwareDir,
+        unitId: input.unitId,
+        folder: tools,
+        log,
+        emit,
+      });
+    }
     if (input.action === 'download') {
       if (input.firmwareDir) {
         emit({ label: 'Checking the download agent', percent: null });
@@ -238,10 +259,7 @@ export async function executePlayerTask(
     });
     const outcome = await api.executeWrite(p, plan, cb.mtk);
     if (!outcome.verification.ok || outcome.verification.full !== 'match')
-      throw new Error(
-        'The update did not finish verification. Keep the cable connected and retry the prepared update. ' +
-          outcome.verification.detail,
-      );
+      throw new Error(playerWriteFailure(recentLines, outcome.verification.detail));
     return { ...summary, verified: true };
   } catch (error) {
     if (

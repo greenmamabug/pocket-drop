@@ -415,6 +415,12 @@ try {
   assert.equal(await page.locator('#player-reuse-backup').isEnabled(), true);
   await page.locator('#player-reuse-backup').click();
   assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['playerReuseBackup']);
+  await page.evaluate(() => {
+    window.state.device.connected = false;
+    window.sendState(window.state);
+  });
+  await page.locator('#player-connection-test').click();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['playerConnectionTest']);
   await page.locator('#player-confirm-write').fill('WRITE');
   assert.equal(await page.locator('#player-write').isDisabled(), false);
   await page.locator('#player-write').click();

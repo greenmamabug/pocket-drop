@@ -8,7 +8,7 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.7.3](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.3/Pocket-Drop-4.7.3-mac-x64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.7.4](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.4/Pocket-Drop-4.7.4-mac-x64.zip).
 - **Apple Silicon (M-series, previous release):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
@@ -158,3 +158,7 @@ To skip repeating a completed player read, choose its backup folder and click **
 **Check update files** now starts the USB updater inside the same helper used by actual updates, before any player backup or write. Cold startup is allowed up to 90 seconds on older Macs. A failed check shows actual startup output in Details and Recent Activity rather than instructions to rebuild developer scripts. The underlying USB failure may still need diagnosis on the affected Mac; hardware was not available in the build environment.
 
 Mac 4.7.3 includes the updater’s native tools and Python runtime inside the app’s signed bundle. Device operations verify and reuse those files at the same path; they no longer copy that runtime into a new temporary folder on each attempt. The official player APK and MediaTek agent are still downloaded and verified separately. Matching GPL/LGPL source archives and upstream build scripts accompany the release; ordinary users only need the Intel app ZIP. The build uses ad-hoc integrity signatures, not Apple Developer ID notarization.
+
+For a repeated disconnect during firmware writing, stop further write attempts and keep the original backup/prepared image. **Test USB connection — read only** uses the saved player’s measured system area and identity check, reads 128 MB into disposable Mac files, then deletes those test files. It neither writes firmware nor creates/replaces a player backup. A passing read test does not establish that writes will work, and does not repair an interrupted update. The partial-update warning remains until a full write and readback verify successfully.
+
+Upstream hardware testing for v0.7.0 was on one player with macOS15; Monterey and the upgrade path were not listed as hardware-tested. See [Stuart’s exact test record](https://github.com/MYO-Studio/studio-pocket/blob/v0.7.0/docs/tested-hardware.md). The connection diagnostic is for investigation, not a claimed serial-driver fix.

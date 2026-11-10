@@ -412,7 +412,7 @@ function render() {
   const d = state.device;
   const playerWorking =
     state.playerUpdate?.running &&
-    ['prepare', 'reuse', 'review', 'write'].includes(state.playerUpdate.action);
+    ['prepare', 'reuse', 'review', 'write', 'connection-test'].includes(state.playerUpdate.action);
   const ejecting = state.busy && state.operation === 'eject' && d.connected;
   $('eject').classList.toggle('ejecting', ejecting);
   $('eject').hidden = ejecting;
@@ -436,9 +436,11 @@ function render() {
   $('header-fill').style.width = Math.max(0, Math.min(100, used)) + '%';
   $('connection').classList.toggle('connected', d.connected);
   $('device-state-label').textContent = playerWorking
-    ? state.playerUpdate.action === 'write'
-      ? 'Updating player software'
-      : 'Preparing player update'
+    ? state.playerUpdate.action === 'connection-test'
+      ? 'Testing USB connection'
+      : state.playerUpdate.action === 'write'
+        ? 'Updating player software'
+        : 'Preparing player update'
     : ejecting
       ? 'Ejecting, please wait…'
       : d.connected
@@ -446,9 +448,11 @@ function render() {
         : 'Disconnected';
   $('connection-title').textContent = state.settings?.pocketName || 'MYO Pocket';
   $('connection-detail').textContent = playerWorking
-    ? state.playerUpdate.action === 'write'
-      ? 'Do not unplug until verification finishes.'
-      : 'Update in progress. You can view its progress below.'
+    ? state.playerUpdate.action === 'connection-test'
+      ? 'Read-only test. The previous update remains incomplete.'
+      : state.playerUpdate.action === 'write'
+        ? 'Do not unplug until verification finishes.'
+        : 'Update in progress. You can view its progress below.'
     : d.connected
       ? `${bytes(d.free)} free of ${bytes(d.total)}`
       : 'Turn on USB storage when prompted on your device.';

@@ -686,8 +686,16 @@
           <button class="button primary" id="player-read">Back up &amp; prepare update</button>
           <button class="button" id="player-reuse-backup" disabled>Use existing backup</button>
           <button class="button" id="player-review" hidden>Review saved update</button>
+          <button class="button" id="player-connection-test" disabled>
+            Test USB connection — read only
+          </button>
         </div>
         <p id="player-reuse-note" class="hint"></p>
+        <p class="hint">
+          The connection test reads temporary data from the player without writing firmware or
+          replacing your backup. It does not repair an interrupted update. Start the test, then
+          press the reset pinhole when prompted.
+        </p>
         <p class="hint">
           Using a saved backup prepares the update on your Mac. Later player-software changes will
           not be included. Pocket Drop still checks the player’s identity before writing.

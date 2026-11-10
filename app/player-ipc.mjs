@@ -50,6 +50,7 @@ export async function installPlayerUpdates({
     return updater.prepare(true);
   });
   handle('playerReview', () => updater.review());
+  handle('playerConnectionTest', () => updater.connectionTest());
   handle('playerWrite', (confirmation, token) => updater.write(confirmation, token));
   handle('playerCancel', () => updater.cancel());
   handle('playerRelease', () => shell.openExternal(PLAYER_RELEASE));

@@ -162,7 +162,11 @@ test('failed player write remains recoverable across restart; retry preserves ba
     assert.equal(resumed.state.pendingWrite, true);
     await assert.rejects(resumed.chooseFolder(root), /pending update/);
     await assert.rejects(resumed.prepare(), /pending update/);
+    await assert.rejects(resumed.prepare(true), /pending update/);
     await resumed.review();
+    assert.match(resumed.state.label, /previous player write was incomplete/);
+    assert.doesNotMatch(resumed.state.label, /Nothing has been written/);
+    assert.equal(resumed.state.pendingWrite, true);
     runner.run = run;
     await resumed.write('WRITE', resumed.state.token);
     assert.equal(resumed.state.phase, 'complete');
@@ -567,4 +571,30 @@ test('packaged updater uses verified bundled tools and does not extract or delet
         .length,
       0,
     );
+  }));
+
+test('a passing read-only connection test never clears an interrupted write or arms another write', () =>
+  temporary(async (root) => {
+    const { updater, runner, library } = await fixture(root);
+    await updater.prepare();
+    const run = runner.run;
+    runner.run = async (input) => {
+      if (input.action === 'write') throw new Error('serial port lost');
+      return run(input);
+    };
+    await assert.rejects(updater.write('WRITE', updater.state.token), /serial port lost/);
+    const marker = await fs.readFile(updater.file, 'utf8');
+    runner.run = async (input) => {
+      assert.equal(input.action, 'connection-test');
+      assert.equal(input.unitId, summary.unitId);
+      return { passed: true, completedReads: 32, bytesRead: 128 * 1024 ** 2 };
+    };
+    await updater.connectionTest();
+    assert.equal(await fs.readFile(updater.file, 'utf8'), marker);
+    assert.equal(updater.state.pendingWrite, true);
+    assert.equal(updater.state.phase, 'resume');
+    assert.equal(updater.state.token, null);
+    assert.match(updater.state.label, /does not repair/);
+    assert.equal(library.busy, false);
+    assert.throws(() => updater.write('WRITE', null), /Review/);
   }));
