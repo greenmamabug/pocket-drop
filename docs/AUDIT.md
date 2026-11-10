@@ -24,7 +24,7 @@ Node tests use real audio and temporary simulated player volumes, including fail
 injection, cancelled operations, missing manifests, large files and unchanged
 originals. Browser tests cover the actual renderer with controlled state. Electron
 tests exercise native IPC, previews, dialogs and shutdown with isolated data. Mac
-CI verifies native encoding/editor behavior and both package architectures.
+CI verifies native encoding/editor behavior and the Intel Mac package.
 
 Physical Y2 mount/eject, long USB transfers, firmware-specific collection display,
 Finder icon caches and older Mac performance still need hardware checks. Apple

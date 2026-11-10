@@ -8,7 +8,7 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.7.4](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.4/Pocket-Drop-4.7.4-mac-x64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.8.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.8.0/Pocket-Drop-4.8.0-mac-x64.zip).
 - **Apple Silicon (M-series, previous release):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
@@ -44,7 +44,7 @@ Track-list and card-detail files are optional. Complete MYO metadata supplies ti
 - Choose cover artwork, Fit the whole image or Fill the card proportions, and adjust vertical framing.
 - View each track’s measured length and original file size. Missing lengths fill in without blocking the editor.
 
-Click **Save changes** to retain these choices across Refresh and restarts. Edits are stored in the app's support folder; Inbox originals are kept. Audio item identity stays stable when you rename it, so a later sync updates the existing player item. For edited audio already on Pocket, choose **Sync changes** in All Audio. The On Pocket tab retains its removal controls.
+Click **Save and close** to retain these choices across Refresh and restarts. Edits are stored in the app's support folder; Inbox originals are kept. Audio item identity stays stable when you rename it, so a later sync updates the existing player item. For edited audio already on Pocket, choose **Sync changes** in All Audio. The On Pocket tab retains its removal controls.
 
 For extracted folders only, **Move excluded originals to Trash** is a separate confirmation. It moves selected excluded source files to the system Trash. Finder's Trash can recover them until emptied. It does not rewrite archives or remove a player copy until you sync the edited version. To remove a complete original and its library entry, move its ZIP/7z/folder out of the Inbox in Finder.
 
@@ -52,7 +52,7 @@ For extracted folders only, **Move excluded originals to Trash** is a separate c
 
 The Collections area arranges items into player-compatible groups. Create, rename, reorder or delete collections and order their members. Each audio item belongs to one player collection. You can create up to 30 collections with names up to 40 characters.
 
-Choose **Icon**, **Picture**, **Chosen covers**, or **Recent covers** in the collection editor. Chosen covers lets you select and order up to three member covers; Recent covers follows the player's listening order, then collection order. A collection picture can take the top position in either stack. Live previews use local library artwork and the last connected Pocket's recent list; hover or focus a collection to fan its cards out. Your circular collection picture stays in Pocket Drop, while the player receives a separate portrait picture at 252×400. Older circular pictures gain a portrait version when requested. Sync verifies copied artwork before publishing the new collection metadata.
+Choose **Icon**, **Picture**, **Cover trio**, or **Recent covers** in the collection editor. Cover trio lets you select and order up to three member covers; Recent covers follows the player's listening order, then collection order. A collection picture can take the top position in either stack. Live previews use local library artwork and the last connected Pocket's recent list; hover or focus a collection to fan its cards out. Your circular collection picture stays in Pocket Drop, while the player receives a separate portrait picture at 252×400. Older circular pictures gain a portrait version when requested. Sync verifies copied artwork before publishing the new collection metadata.
 
 The new looks require Studio Pocket **0.7.0+** on the Y2; older players keep the icon view. Use Settings → Player software for the existing-installation update wizard. Reading new collections from Pocket preserves their appearance settings and imports their available pictures. Local collections take precedence during merging. Moving an item out of a collection removes it from that collection's chosen covers as well.
 
@@ -131,13 +131,11 @@ The main Audio Library has no collection dropdown or Prepare Audio button. Sync 
 
 Normal **Sync** now includes pending collection changes, and is available for collection-only changes even when no audio is selected. It copies the selected audio and the collection arrangement. **Sync Collections** on the Collections page additionally copies any missing member audio. Creating or editing a collection saves it locally until you click one of these Sync buttons. Pending/synced status is displayed on that page.
 
-After syncing, eject Pocket and leave USB-storage mode so the player can reload its library. The inspected open-source player hides empty collections and collections with no available member audio. Audio/collection sync does not change player software. The separate player-update wizard is described below.
+After syncing, eject Pocket and leave USB-storage mode so the player can reload its library. The inspected open-source player hides empty collections and collections with no available member audio. Audio/collection sync does not change player software.
 
-## Update player software
+## Player software
 
-Use **Settings → Player software → Update player software…** to update an existing Studio Pocket installation to **0.7.0 (pre-release)**. Choose a backup folder, download/verify the official files, eject Pocket, and follow the powered-off/reset-pinhole instructions. Reading and preparation happen before a separate typed WRITE confirmation. The actual player's identity and signing-key compatibility must match; the full written image is read back before success is shown. No Node or Python installation is required.
-
-This uses Stuart's unmodified public GPL firmware engine. Supported bases are 3.2.0 with FM Radio and 3.2.1; other builds and new signing keys are refused. Keep your original per-player backup. Failed writes retain a reviewed retry flow across app restarts. [Instructions, recovery and verification limits](docs/PLAYER-UPDATES.md).
+Firmware installation and updating are not included in Pocket Drop. Audio-library syncing is separate from player software. Existing backup folders and saved images are left untouched.
 
 ## Track details
 
@@ -151,14 +149,11 @@ hardware validation. Run `npm run check`, `npm test`, `npm run test:ui` and
 `npm run test:desktop` as described there. `npm run format` keeps first-party
 code consistent. Vendored upstream code is excluded from formatting.
 
-Player-update failures are saved in Recent Activity. In Settings, choose **View update progress**, **Continue player update**, or **Review update error** to reopen the wizard. **Details…** shows timestamped reader output, including the final lines of a traceback. If Back up & prepare fails, no update was written to the player; reconnect/power off as prompted and retry. An interrupted write is different: retain the backup and use the existing review/retry recovery flow.
 
-To skip repeating a completed player read, choose its backup folder and click **Use existing backup**. Pocket Drop checks the saved image’s size and hash, verifies its signing-key compatibility, and prepares locally. The existing backup reflects player software as it was when read; later software changes are not included. Player identity and full readback verification still apply when writing. A prepared update can also be reopened with **Review saved update** without another backup.
+## Track icon picker and Yoto account
 
-**Check update files** now starts the USB updater inside the same helper used by actual updates, before any player backup or write. Cold startup is allowed up to 90 seconds on older Macs. A failed check shows actual startup output in Details and Recent Activity rather than instructions to rebuild developer scripts. The underlying USB failure may still need diagnosis on the affected Mac; hardware was not available in the build environment.
+Choose a track’s **Choose icon** button to browse its existing icons as pictures, or **Find icon…** to search standard Yoto icons and Yotoicons.com. Selected icons are normalized to 16×16 PNGs and saved locally with your edits. These two public catalogues work without an account.
 
-Mac 4.7.3 includes the updater’s native tools and Python runtime inside the app’s signed bundle. Device operations verify and reuse those files at the same path; they no longer copy that runtime into a new temporary folder on each attempt. The official player APK and MediaTek agent are still downloaded and verified separately. Matching GPL/LGPL source archives and upstream build scripts accompany the release; ordinary users only need the Intel app ZIP. The build uses ad-hoc integrity signatures, not Apple Developer ID notarization.
+Settings includes optional Yoto account setup for personal icons. Register your own public client in Yoto’s developer dashboard with `http://127.0.0.1:8787/callback` as its redirect URL; no client secret is required. Sign-in uses the browser, PKCE and state validation. Tokens are encrypted with the operating system credential store and are never sent to the icon community site. Real account authorization requires your registered client; automated tests use a simulated account service.
 
-For a repeated disconnect during firmware writing, stop further write attempts and keep the original backup/prepared image. **Test USB connection — read only** uses the saved player’s measured system area and identity check, reads 128 MB into disposable Mac files, then deletes those test files. It neither writes firmware nor creates/replaces a player backup. A passing read test does not establish that writes will work, and does not repair an interrupted update. The partial-update warning remains until a full write and readback verify successfully.
-
-Upstream hardware testing for v0.7.0 was on one player with macOS15; Monterey and the upgrade path were not listed as hardware-tested. See [Stuart’s exact test record](https://github.com/MYO-Studio/studio-pocket/blob/v0.7.0/docs/tested-hardware.md). The connection diagnostic is for investigation, not a claimed serial-driver fix.
+Collection **Cover trio** previews label the first/front, second/left and third/right covers. Hover or focus the editor preview to fan the cards out. The collection page shows a Cover trio already fanned. The player needs Studio Pocket 0.7.0 or later to display these collection looks; older versions use the collection icon.

@@ -86,10 +86,7 @@
                   </button></span
                 ><span class="device-secondary"
                   ><small id="device-audio-duration" hidden></small
-                  ><small id="connection-detail">Connect with a USB data cable</small
-                  ><button id="view-player-progress" class="text-button" hidden>
-                    View update progress…
-                  </button></span
+                  ><small id="connection-detail">Connect with a USB data cable</small></span
                 ><span
                   class="header-meter"
                   id="header-meter"
@@ -325,9 +322,34 @@
         </section>
         <section id="settings" class="page">
           <div class="card">
-            <h3>Player software</h3>
-            <p id="player-card-status">Update the Studio Pocket software on your player.</p>
-            <button class="button primary" id="manage-player">Update player software…</button>
+            <h3>Yoto account</h3>
+            <p id="yoto-account-status" role="status">
+              Optional: connect to browse your personal Yoto icons.
+            </p>
+            <p class="hint">
+              Standard Yoto icons and Yotoicons.com search work without signing in. For personal
+              icons, create a public client in Yoto’s developer dashboard and register
+              <code>http://127.0.0.1:8787/callback</code> as its redirect URL. No client secret is
+              needed.
+            </p>
+            <label
+              >Yoto public client ID<input
+                id="yoto-client-id"
+                maxlength="200"
+                autocomplete="off"
+                spellcheck="false"
+            /></label>
+            <div class="inline-buttons">
+              <button class="button primary" id="yoto-connect">Connect Yoto…</button
+              ><button class="button" id="yoto-cancel" hidden>Cancel sign-in</button
+              ><button class="button" id="yoto-disconnect" hidden>Disconnect Yoto</button
+              ><button class="text-button" id="yoto-setup">Yoto setup instructions</button>
+            </div>
+            <p class="hint">
+              Sign in on Yoto’s website. Credentials are encrypted with macOS Keychain. Yoto’s
+              custom-icon permission includes editing; Pocket Drop only reads icons and saves your
+              choices locally.
+            </p>
           </div>
           <div class="card">
             <h3>Audio conversion</h3>
@@ -634,194 +656,6 @@
       </form>
     </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
-    <dialog
-      id="player-update-dialog"
-      class="studio-dialog player-update-dialog"
-      aria-labelledby="player-update-title"
-    >
-      <div class="editor-heading">
-        <div>
-          <span class="eyebrow">PLAYER SOFTWARE</span>
-          <h3 id="player-update-title">Update Studio Pocket</h3>
-        </div>
-        <button class="text-button" id="player-update-close">Close</button>
-      </div>
-      <p class="player-release-note">
-        <strong>Version 0.7.0 · Pre-release</strong><br />Stuart marks this release as having
-        limited hardware testing. This updates an existing Studio Pocket installation by rewriting
-        its system software. Keep your player backups.
-      </p>
-      <button class="text-button" id="player-official-release">Read Stuart’s release notes</button>
-      <section class="player-update-step" id="player-backup-step">
-        <h4><span>1</span> Save a backup on your Mac</h4>
-        <p>
-          If you already have a Studio Pocket firmware backup folder, choose it here. Otherwise,
-          choose a new folder. A new backup keeps the player’s current software; it does not
-          recreate its original stock software.
-        </p>
-        <div id="player-backup-path" class="path-display">Choose a folder on your Mac.</div>
-        <div class="inline-buttons">
-          <button class="button" id="player-choose-backup">Choose backup folder…</button>
-          <button class="text-button" id="player-open-backup" hidden>Open backups</button>
-          <button class="button" id="player-get-files">Check update files</button>
-        </div>
-        <p class="hint">
-          Downloads the official player and Mac tools on first use, then checks their hashes and the
-          player’s signing certificate. About 24 MB including the first-use download agent; no Node
-          or Python installation needed.
-        </p>
-      </section>
-      <section class="player-update-step" id="player-prepare-step">
-        <h4><span>2</span> Read and prepare</h4>
-        <p>
-          Eject Pocket, power the player off, and leave its USB data cable connected. Start the
-          backup below, then press the reset pinhole when the app says it is waiting for the player.
-        </p>
-        <p class="hint">
-          This step reads the player and prepares a copy on your Mac. It does not write to the
-          player. Allow several minutes and keep at least 6 GB free on the Mac.
-        </p>
-        <div class="inline-buttons">
-          <button class="button" id="player-eject">Eject Pocket</button>
-          <button class="button primary" id="player-read">Back up &amp; prepare update</button>
-          <button class="button" id="player-reuse-backup" disabled>Use existing backup</button>
-          <button class="button" id="player-review" hidden>Review saved update</button>
-          <button class="button" id="player-connection-test" disabled>
-            Test USB connection — read only
-          </button>
-        </div>
-        <p id="player-reuse-note" class="hint"></p>
-        <p class="hint">
-          The connection test reads temporary data from the player without writing firmware or
-          replacing your backup. It does not repair an interrupted update. Start the test, then
-          press the reset pinhole when prompted.
-        </p>
-        <p class="hint">
-          Using a saved backup prepares the update on your Mac. Later player-software changes will
-          not be included. Pocket Drop still checks the player’s identity before writing.
-        </p>
-      </section>
-      <section class="player-update-progress" id="player-progress-section" hidden>
-        <p id="player-update-status" role="status" aria-live="polite"></p>
-        <progress id="player-update-progress" max="100" aria-label="Current update step"></progress>
-        <p class="hint" id="player-sleep-note" hidden>
-          Keep the Mac awake and the cable connected. You can close this panel and reopen it from
-          Settings to view progress.
-        </p>
-        <p id="player-update-error" class="notice" role="alert" hidden></p>
-        <p id="player-update-recovery" class="notice" hidden>
-          The previous write has not been verified. Keep this backup folder. Review and retry the
-          prepared update before using the player. If retrying fails, use Stuart’s recovery
-          instructions and your original backup.
-        </p>
-        <details id="player-operation-details">
-          <summary>Details…</summary>
-          <p id="player-operation-elapsed" class="hint"></p>
-          <pre id="player-detail-lines" tabindex="0" aria-label="Player update log"></pre>
-        </details>
-        <button class="text-button" id="player-show-guide" hidden>Show connection guide…</button>
-        <button class="button" id="player-cancel" hidden>Cancel read / preparation</button>
-      </section>
-      <section class="player-update-step" id="player-write-section" hidden>
-        <h4><span>3</span> Confirm and update</h4>
-        <p id="player-identity"></p>
-        <p>
-          Charge the player first. Writing and reading back the full image can take 10–15 minutes.
-          Press the reset pinhole again when prompted.
-          <strong>Do not unplug or shut down the Mac during this step.</strong>
-        </p>
-        <details>
-          <summary>What will be written and checked</summary>
-          <ul id="player-checklist"></ul>
-        </details>
-        <label for="player-confirm-write">Type WRITE to update this player</label>
-        <div class="player-write-confirm">
-          <input
-            id="player-confirm-write"
-            autocomplete="off"
-            spellcheck="false"
-            maxlength="5"
-            placeholder="WRITE"
-          />
-          <button class="button primary" id="player-write" disabled>Update player</button>
-        </div>
-      </section>
-    </dialog>
-    <dialog
-      id="player-connection-guide"
-      class="studio-dialog player-connection-guide"
-      aria-labelledby="player-guide-title"
-    >
-      <h3 id="player-guide-title">Waiting for your player</h3>
-      <p id="player-guide-status" role="status"></p>
-      <svg
-        id="player-guide-diagram"
-        viewBox="0 0 600 290"
-        role="img"
-        aria-label="Player powered off with USB data cable connected. Press the reset pinhole using a straightened paper clip; an enlarged schematic shows the clip entering the hole."
-      >
-        <rect
-          x="25"
-          y="32"
-          width="130"
-          height="180"
-          rx="20"
-          fill="#f5f1fa"
-          stroke="#6f438f"
-          stroke-width="3"
-        />
-        <rect x="43" y="48" width="94" height="60" rx="6" fill="#272330" />
-        <text x="90" y="83" text-anchor="middle" fill="white" font-size="14">Powered off</text>
-        <circle cx="90" cy="156" r="32" fill="#dfd5e9" />
-        <circle cx="90" cy="156" r="12" fill="#faf7fc" />
-        <rect x="76" y="210" width="28" height="18" rx="3" fill="#797181" />
-        <path d="M90 228v28h128v-24" fill="none" stroke="#797181" stroke-width="6" />
-        <rect
-          x="180"
-          y="170"
-          width="85"
-          height="62"
-          rx="5"
-          fill="#e9e5ed"
-          stroke="#797181"
-          stroke-width="2"
-        />
-        <path d="M174 234h97" stroke="#797181" stroke-width="5" />
-        <text x="26" y="280" font-size="15" fill="#554263">USB data cable connected</text>
-        <rect
-          x="309"
-          y="38"
-          width="265"
-          height="106"
-          rx="18"
-          fill="#eee5f8"
-          stroke="#9b76b9"
-          stroke-width="2"
-        />
-        <circle cx="441" cy="118" r="7" fill="#33233c" />
-        <text x="441" y="71" text-anchor="middle" font-size="16" fill="#554263">
-          Reset pinhole · enlarged view
-        </text>
-        <path
-          class="paperclip-press"
-          d="M441 209v-68m0 68c0 14 25 14 25 0v-36c0-9-15-9-15 0v24"
-          fill="none"
-          stroke="#8552af"
-          stroke-width="4"
-          stroke-linecap="round"
-        />
-        <path d="M420 170l-9-11-9 11m9-10v34" fill="none" stroke="#8552af" stroke-width="3" />
-        <text x="441" y="253" text-anchor="middle" font-size="15" fill="#554263">
-          Gently press with a paper clip
-        </text>
-      </svg>
-      <div id="player-guide-success" class="player-guide-success" hidden aria-hidden="true">✓</div>
-      <p class="hint">
-        The reset drawing is a close-up guide. Use the reset pinhole on your player. This window
-        closes automatically when a connection is detected.
-      </p>
-      <button class="button" id="player-guide-background">Continue in background</button>
-    </dialog>
     <script src="app.js" type="module"></script>
   </body>
 </html>

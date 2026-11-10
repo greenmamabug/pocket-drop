@@ -3,7 +3,7 @@
 export const COLLECTION_LOOKS = {
   icon: 'Icon',
   image: 'Picture',
-  covers: 'Chosen covers',
+  covers: 'Cover trio',
   recent: 'Recent covers',
 };
 export function collectionLook(group) {

@@ -50,18 +50,7 @@ const application = await electron.launch({
 try {
   const page = await application.firstWindow(),
     errors = [];
-  if (process.env.POCKET_PLAYER_TOOL_CHECK === '1') {
-    if (process.env.POCKET_PLAYER_ASSET_CACHE)
-      await fs.cp(process.env.POCKET_PLAYER_ASSET_CACHE, path.join(root, 'player-download-test'), {
-        recursive: true,
-      });
-    const result = await application.evaluate(
-      async (_electron, cache) => globalThis.pocketTestPlayerDownload(cache),
-      path.join(root, 'player-download-test'),
-    );
-    assert.equal(result.version, '0.7.0');
-    assert.equal(result.toolIdentityVerified, true);
-  }
+
   page.on('pageerror', (e) => errors.push(e.message));
   await page.getByText('Desktop story', { exact: true }).waitFor();
   await page.locator('.audio-open').click();
@@ -92,7 +81,32 @@ try {
   await page.locator('#cover-mode').selectOption('fill');
   await page.locator('#editor-title').fill('Edited desktop story');
   await page.locator('[data-track-up="audio/02.mp3"]').click();
-  await page.locator('[data-track-icon="audio/02.mp3"]').selectOption('icons/one.png');
+  await page.locator('[data-track-icon="audio/02.mp3"]').click();
+  await page.locator('[data-icon-key="icons/one.png"]').click();
+  await application.evaluate(
+    ({ net }, png) => {
+      const original = net.fetch;
+      net.fetch = (url, options) => {
+        if (String(url) === 'https://yoto.dev/icons/using-icons/')
+          return Promise.resolve(
+            new Response(
+              '<img src="https://card-content.yotoplay.com/yoto/_WWpLHoOj6iqeREcGkJnGlsis2QSF6znM0UPFdXTjf8" alt="Desktop test icon">',
+            ),
+          );
+        if (String(url).startsWith('https://card-content.yotoplay.com/yoto/'))
+          return Promise.resolve(new Response(Buffer.from(png, 'base64')));
+        return original(url, options);
+      };
+    },
+    (await fs.readFile(path.join(folder, 'icons', 'one.png'))).toString('base64'),
+  );
+  await page.locator('[data-find-icon="audio/01.mp3"]').click();
+  await page.getByRole('button', { name: 'Desktop test icon', exact: true }).click();
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-track-icon="audio/01.mp3"]')
+      .dataset.selectedIcon.startsWith('asset:'),
+  );
   await page.locator('#editor-save-only').click();
   await page.waitForFunction(
     () => document.getElementById('editor-save-status').textContent === 'Saved',
@@ -103,6 +117,13 @@ try {
   const item = Object.values(catalog.items)[0];
   assert.equal(item.edits.title, 'Edited desktop story');
   assert.equal(item.edits.tracks[0].key, 'audio/02.mp3');
+  const remoteRef = item.edits.tracks.find((track) => track.key === 'audio/01.mp3').iconKey;
+  assert.match(remoteRef, /^asset:/);
+  const remoteInfo = await sharp(
+    path.join(root, 'support', 'studio', 'artwork', remoteRef.slice(6)),
+  ).metadata();
+  assert.equal(remoteInfo.width, 16);
+  assert.equal(remoteInfo.height, 16);
   assert.ok(item.coverData.startsWith('data:image/png'));
   await page.screenshot({ path: 'release/Audio-details-440.png' });
   const rendered = (await fs.readdir(path.join(root, 'support', 'studio', 'rendered-artwork')))[0];
@@ -186,7 +207,10 @@ try {
   await page.evaluate(() => window.pocket.invoke('refresh'));
   await page.getByText('Numbered archive', { exact: true }).click();
   await page.locator('#audio-editor').waitFor({ state: 'visible' });
-  assert.equal(await page.locator('[data-track-icon]').inputValue(), 'images/1.png');
+  assert.equal(
+    await page.locator('[data-track-icon]').getAttribute('data-selected-icon'),
+    'images/1.png',
+  );
   assert.ok((await page.locator('#editor-cover').getAttribute('src')).startsWith('data:image/png'));
   assert.equal(await page.locator('#editor-save-only').innerText(), 'Save');
   assert.equal(await page.locator('#editor-save').innerText(), 'Save and close');

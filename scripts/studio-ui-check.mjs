@@ -135,6 +135,27 @@ try {
           window.saved = args[1];
           return { saved: true };
         }
+        if (method === 'searchIcons')
+          return {
+            items:
+              args[1] === 'community' && !args[2]
+                ? []
+                : [
+                    {
+                      key: 'remote-' + args[1],
+                      name: 'Cat icon',
+                      url: window.state.rows[0].cover,
+                      author: args[1] === 'community' ? 'Test artist' : undefined,
+                    },
+                  ],
+            more: false,
+          };
+        if (method === 'chooseRemoteIcon')
+          return {
+            key: 'asset:' + args[1] + '.png',
+            name: 'Cat icon',
+            url: window.state.rows[0].cover,
+          };
         if (method === 'saveCollections') {
           window.state.collections = args[0];
           window.state.collectionPictures = { ...window.state.collectionPictures, ...args[1] };
@@ -196,7 +217,49 @@ try {
   await page.locator('[data-track-up="audio/02.mp3"]').click();
   assert.equal(await page.locator('[data-track-title]').first().inputValue(), 'An ending');
   await page.locator('[data-track-title="audio/02.mp3"]').fill('My opening');
-  await page.locator('[data-track-icon="audio/02.mp3"]').selectOption('icons/one.png');
+  await page.locator('[data-track-icon="audio/02.mp3"]').click();
+  await page.locator('[data-icon-key="icons/one.png"]').click();
+  assert.equal(await page.locator('select[data-track-icon]').count(), 0);
+  await page.evaluate(() => {
+    window.state.settings.appTextSize = 20;
+    window.sendState(window.state);
+  });
+  assert.ok(
+    await page
+      .locator('[data-track-icon]')
+      .first()
+      .evaluate((node) => parseFloat(getComputedStyle(node).fontSize) >= 20),
+  );
+  assert.ok(
+    await page.locator('#audio-editor').evaluate((node) => node.scrollWidth <= node.clientWidth),
+  );
+  await page.evaluate(() => {
+    window.state.settings.appTextSize = 14;
+    window.sendState(window.state);
+  });
+  await page.locator('[data-find-icon="audio/01.mp3"]').click();
+  await page.locator('#icon-query').fill('cat');
+  await page.locator('#icon-search-form button').click();
+  await page.locator('[data-icon-key="remote-yoto"]').click();
+  assert.equal(
+    await page.locator('[data-track-icon="audio/01.mp3"]').getAttribute('data-selected-icon'),
+    'asset:remote-yoto.png',
+  );
+  await page.locator('[data-find-icon="audio/01.mp3"]').click();
+  await page.locator('#icon-source').selectOption('community');
+  await page.locator('#icon-query').fill('otter');
+  await page.locator('#icon-search-form button').click();
+  await page.locator('[data-icon-key="remote-community"]').waitFor();
+  assert.match(await page.locator('#icon-results').innerText(), /Test artist/);
+  await page.locator('[data-icon-key="remote-community"]').click();
+  assert.equal(
+    await page.locator('[data-track-icon="audio/01.mp3"]').getAttribute('data-selected-icon'),
+    'asset:remote-community.png',
+  );
+  await page.locator('[data-find-icon="audio/01.mp3"]').click();
+  await page.locator('#icon-source').selectOption('personal');
+  assert.match(await page.locator('#icon-search-status').innerText(), /Connect your Yoto account/);
+  await page.locator('#icon-picker-close').click();
   await page.locator('[data-track-delete="audio/01.mp3"]').click();
   assert.equal(await page.locator('[data-track-delete="audio/01.mp3"]').innerText(), 'Restore');
   await page.locator('#editor-save-only').click();
@@ -206,6 +269,7 @@ try {
   assert.equal(saved.tracks[0].key, 'audio/02.mp3');
   assert.equal(saved.tracks[0].iconKey, 'icons/one.png');
   assert.equal(saved.tracks[1].excluded, true);
+  assert.equal(saved.tracks[1].iconKey, 'asset:remote-community.png');
   assert.ok(await page.locator('#audio-editor').isVisible());
   assert.equal(await page.locator('#editor-save-only').innerText(), 'Save');
   assert.equal(await page.locator('#editor-save').innerText(), 'Save and close');
@@ -249,6 +313,32 @@ try {
   await page.locator('[data-member-up=second]').click();
   await page.locator('#collection-look').selectOption('covers');
   assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 2);
+  assert.match(
+    await page.locator('[data-cover-slot="0"]').locator('..').innerText(),
+    /First cover \(front\)/,
+  );
+  assert.match(
+    await page.locator('[data-cover-slot="1"]').locator('..').innerText(),
+    /Second cover \(left\)/,
+  );
+  assert.match(
+    await page.locator('[data-cover-slot="2"]').locator('..').innerText(),
+    /Third cover \(right\)/,
+  );
+  assert.equal(await page.locator('#collection-card-preview [style]').count(), 0);
+  const card = page.locator('#collection-card-preview .stack-card').nth(1);
+  const closedTransform = await card.evaluate((node) => getComputedStyle(node).transform);
+  await page.locator('.collection-live-preview').hover();
+  await page.waitForFunction(
+    () =>
+      new DOMMatrix(
+        getComputedStyle(
+          document.querySelector('#collection-card-preview .stack-card:nth-child(2)'),
+        ).transform,
+      ).m41 < -20,
+  );
+  assert.notEqual(await card.evaluate((node) => getComputedStyle(node).transform), closedTransform);
+  await page.locator('.collection-live-preview').focus();
   await page.locator('[data-cover-up="1"]').click();
   assert.equal(
     await page.evaluate(
@@ -263,6 +353,15 @@ try {
     .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
   await page.screenshot({ path: '/tmp/pocket-collection-editor.png' });
   await page.locator('#collection-save').click();
+  await page.mouse.move(0, 0);
+  await page.waitForFunction(
+    () =>
+      new DOMMatrix(
+        getComputedStyle(
+          document.querySelector('.collection-card .cover-trio .stack-card:nth-child(2)'),
+        ).transform,
+      ).m41 < -20,
+  );
   const groups = await page.evaluate(() => window.state.collections);
   assert.equal(groups[0].title, 'Bedtime');
   assert.deepEqual(groups[0].playlists, ['second', 'a-story']);
@@ -271,6 +370,14 @@ try {
   await page.locator('[data-group-edit]').first().click();
   await page.locator('#collection-picture-change').click();
   assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 3);
+  assert.match(
+    await page.locator('[data-cover-slot="0"]').locator('..').innerText(),
+    /Second cover \(left\)/,
+  );
+  assert.match(
+    await page.locator('[data-cover-slot="1"]').locator('..').innerText(),
+    /Third cover \(right\)/,
+  );
   await page.locator('#collection-use-picture').uncheck();
   assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 2);
   await page.locator('#collection-look').selectOption('image');
@@ -394,103 +501,19 @@ try {
   await page.locator('#audio-editor').waitFor({ state: 'hidden' });
   await page.setViewportSize({ width: 960, height: 700 });
   await page.locator('[data-page=settings]').click();
-  await page.evaluate(() => {
-    window.state.playerUpdate = {
-      supported: true,
-      phase: 'prepared',
-      running: false,
-      token: 'reviewed-update',
-      firmwareDir: '/Users/Test/Player Backups',
-      savedBackupId: '1234567890abcdef1234567890abcdef',
-      summary: {
-        unitId: '1234567890abcdef1234567890abcdef',
-        checklist: ['Only this player’s measured system partition is written.'],
-      },
-      label: 'Backup saved and update prepared.',
-    };
-    window.sendState(window.state);
-  });
-  await page.locator('#manage-player').click();
-  assert.equal(await page.locator('#player-write').isDisabled(), true);
-  assert.equal(await page.locator('#player-reuse-backup').isEnabled(), true);
-  await page.locator('#player-reuse-backup').click();
-  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['playerReuseBackup']);
-  await page.evaluate(() => {
-    window.state.device.connected = false;
-    window.sendState(window.state);
-  });
-  await page.locator('#player-connection-test').click();
-  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['playerConnectionTest']);
-  await page.locator('#player-confirm-write').fill('WRITE');
-  assert.equal(await page.locator('#player-write').isDisabled(), false);
-  await page.locator('#player-write').click();
-  await page.locator('#player-update-close').click();
-  await page.evaluate(() => {
-    window.state.busy = true;
-    window.state.operation = 'player-update';
-    window.state.device.connected = false;
-    Object.assign(window.state.playerUpdate, {
-      action: 'prepare',
-      running: true,
-      startedAt: 1234,
-      connectionAttempt: 1,
-      connectionPhase: 'waiting',
-      label: 'Waiting for player',
-      details: ['USB reader started'],
-    });
-    window.sendState(window.state);
-  });
-  await page.locator('#player-connection-guide').waitFor({ state: 'visible' });
-  await page.locator('#player-guide-diagram').waitFor({ state: 'visible' });
   assert.equal(
-    await page.locator('#device-panel').evaluate((e) => e.classList.contains('connected')),
-    true,
+    await page
+      .locator(
+        '#manage-player, #player-update-dialog, #player-connection-guide, #view-player-progress',
+      )
+      .count(),
+    0,
   );
-  assert.equal(await page.locator('#manage-player').innerText(), 'View update progress…');
-  await page.evaluate(() => {
-    window.state.playerUpdate.connectionPhase = 'handshake';
-    window.sendState(window.state);
-  });
-  assert.equal(await page.locator('#player-guide-title').innerText(), 'Player detected');
-  await page.locator('#player-connection-guide').waitFor({ state: 'hidden' });
-  await page.locator('#view-player-progress').click();
-  await page.locator('#player-operation-details').click();
-  assert.match(await page.locator('#player-detail-lines').innerText(), /USB reader started/);
-
-  assert.ok(
-    await page.evaluate(() =>
-      window.calls.some(
-        (c) => c[0] === 'playerWrite' && c[1] === 'WRITE' && c[2] === 'reviewed-update',
-      ),
-    ),
-  );
-  await page.evaluate(() => {
-    window.state.busy = true;
-    Object.assign(window.state.playerUpdate, {
-      running: true,
-      phase: 'writing',
-      action: 'write',
-      token: null,
-      label: 'Writing player software — do not unplug',
-      percent: 35,
-    });
-    window.sendState(window.state);
-  });
-  assert.equal(await page.locator('#player-cancel').isHidden(), true);
-  assert.equal(await page.locator('#player-read').isDisabled(), true);
-  assert.equal(await page.locator('#player-confirm-write').inputValue(), '');
-  assert.equal(await page.locator('#player-update-progress').getAttribute('value'), '35');
-  assert.equal(await page.locator('#device-state-label').innerText(), 'Updating player software');
-  assert.match(await page.locator('#connection-detail').innerText(), /Do not unplug/);
-  await page.screenshot({ path: '/tmp/pocket-player-update-preview.png' });
-  await page.locator('#player-update-close').click();
-  await page.locator('#manage-player').click();
-  assert.match(await page.locator('#player-update-status').innerText(), /Writing player software/);
-  await page.locator('#player-update-close').click();
+  assert.equal(await page.locator('#yoto-connect').isVisible(), true);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 960);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: track editing/icon reassignment/exclusion, saved draft payload, track search, collection membership/order, offline preparation controls, duplicate preference/restore, notifications, update UI, safe error details and 960px layout.',
+    'PASS: track editing/icon reassignment/exclusion, saved draft payload, track search, collection membership/order, offline preparation controls, duplicate preference/restore, notifications, firmware controls absent, safe error details and 960px layout.',
   );
 } finally {
   await browser.close();

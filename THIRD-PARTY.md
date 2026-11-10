@@ -10,19 +10,12 @@ Pocket Drop is distributed under **GPL-3.0-only**, consistent with its use of St
 - The sync-engine remains pinned to this revision. Library-format was updated to v0.7.0 as noted below.
 - Upstream source is preserved in `vendor/`. Only the sync-engine workspace dependency specifier in package.json is adjusted from `workspace:*` to `*` for npm workspaces. Runtime source is unchanged.
 - Licence: GPL-3.0-only, or a separate commercial licence from Ashworth Digital Ltd. COPYING.commercial is included where supplied upstream. This distribution uses the GPL option.
-- The sync/library packages above remain pinned to that revision. Player updating uses the separate firmware-tools pin below.
 
 Pocket Drop's adapter adds safe ZIP access, Chrome archive metadata synthesis, artwork hash comparison, local discovery, USB-volume/identity checks, and a graphical UI. Planning, transfers, removal, state cleanup, and library index writes use the upstream engine.
 
 ## Library-format and collection looks (4.7.0)
 
 `vendor/library-format/src` now matches the public v0.7.0 source at `06f11b08ff4a10c9ab4d38ea4000869090298174`, with the matching group tests/fixtures. Its GPL licence and upstream notices are retained. The source changes are the optional `display`, `image` and `covers` fields and non-fatal missing-picture checks. Format version remains 1. Pocket Drop's collection editor, circular avatars, card-stack previews, artwork normalization and sync adapters are its own implementation of the documented public format. No proprietary desktop interface code is used.
-
-## Studio Pocket player updater (4.6.1)
-
-`vendor/firmware-tools` preserves the public GPL-3.0-only firmware engine source from Studio Pocket **v0.7.0**, commit `06f11b08ff4a10c9ab4d38ea4000869090298174` (Ashworth Digital Ltd), with its LICENSE and COPYING.commercial. Pocket Drop 4.7.2 makes two documented local changes in src/node.ts and src/mtk.ts: expose a bounded no-device capability-probe report for startup diagnostics, and allow 90 seconds for cold startup on older Intel Macs. The capability answer, clean-exit requirement, actual-player identity gate and write verification remain enforced. The original package manifest and build configuration are retained; compiled output is built from the included source. No proprietary Studio Pocket desktop code is used.
-
-The app fetches the official APK, e2fsprogs and architecture-specific mtkclient tool archives directly from https://github.com/MYO-Studio/studio-pocket/releases/tag/v0.7.0 on the user's computer. From 4.7.3, Mac releases bundle the hash-verified e2fsprogs and mtkclient/Python runtime inside Contents/Resources/firmware-tools, with all upstream notices and licences. Native files/frameworks receive ad-hoc integrity signatures, and the sealed outer app includes their post-signing file manifest. Their program code is unchanged. The matching e2fsprogs, mtkclient and libusb source archives and the upstream build/patch scripts are attached to the same Pocket Drop release. Development runs retain the pinned-download path. Exact archive hashes and APK signer are pinned in `app/player-release.mjs`. Downloaded archives retain upstream `licences/` and `BUNDLE-INFO.json`; the same upstream release provides corresponding GPL/LGPL sources and SPDX bills of materials. The MediaTek agent is not distributed: the unmodified firmware engine fetches it from its pinned upstream source and verifies it before use. The updater exposes no unchecked-agent or new-signer bypass. See `docs/PLAYER-UPDATES.md` for the operation and testing limits.
 
 ## Other runtime dependencies
 
@@ -48,4 +41,7 @@ The 4.3.1 Finder icon retains the user's supplied purple book/yellow arrow desig
 
 Ogg Vorbis decoding uses @wasm-audio-decoders/ogg-vorbis 0.1.20 (MIT), based on libvorbis (BSD), from https://github.com/eshaz/wasm-audio-decoders. The package and bundled upstream licence notices are included in node_modules in the application. Opus/Vorbis source audio is retained unchanged; AAC is prepared in temporary/cache files.
 
-For modified runtime builds (including replacing LGPL libusb), use the included source/build scripts and licence notices. After signing the replacement native files/frameworks, regenerate the bundled tool manifest with `node scripts/player-bundle-manifest.mjs <app>/Contents/Resources/firmware-tools x64`, then ad-hoc sign the outer application again. No private signing key or online activation is needed. The release workflow contains the signing order and commands; changes invalidate the old outer signature until it is regenerated.
+
+## Optional icon catalogues
+
+The app links to and browses public Yoto standard icons at https://yoto.dev/icons/using-icons and public community search at https://yotoicons.com. Icons are fetched only on request; artist names supplied by the community catalogue are displayed. No icon catalogue is redistributed as a bundled asset pack. Personal Yoto icons use the user’s own registered public OAuth client and authorization. No MYO Studio or other third-party OAuth client credentials are borrowed.

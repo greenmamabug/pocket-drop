@@ -3279,7 +3279,9 @@ svg,
 }
 .track-edit-row {
   display: grid;
-  grid-template-columns: 20px 24px minmax(130px, 1fr) 24px minmax(100px, 145px) 44px 40px 55px;
+  grid-template-columns:
+    20px 24px minmax(130px, 1fr) minmax(105px, 6.5em) minmax(78px, 5em)
+    44px minmax(40px, 3em) minmax(55px, 4em);
   align-items: center;
   gap: 8px;
   padding: 10px;
@@ -3297,7 +3299,8 @@ svg,
 }
 .track-edit-row .text-button {
   padding: 4px 0;
-  font-size: 14px;
+  font-size: max(14px, var(--app-text));
+  line-height: 1.3;
 }
 .track-name {
   min-width: 0;
@@ -3458,7 +3461,7 @@ svg,
     justify-content: flex-start;
   }
   .track-edit-row {
-    grid-template-columns: 18px 22px minmax(100px, 1fr) 20px 105px 38px 35px 48px;
+    grid-template-columns: 18px 22px minmax(100px, 1fr) 96px 70px 38px 35px 48px;
     gap: 6px;
   }
   .audio-editor {
@@ -3672,84 +3675,6 @@ svg,
 .track-name small {
   overflow-wrap: anywhere;
 }
-/* Player software wizard: phase progress stays separate from audio transfer state. */
-.player-update-dialog {
-  width: min(720px, 90vw);
-  max-height: 88vh;
-  overflow: auto;
-}
-.player-update-dialog h3 {
-  margin: 0;
-}
-.player-update-dialog p {
-  line-height: 1.5;
-}
-.player-release-note {
-  padding: 16px 18px;
-  background: #f4effc;
-  border-radius: 12px;
-}
-.player-update-step {
-  border-top: 1px solid #e5dfeb;
-  margin-top: 22px;
-  padding-top: 18px;
-}
-.player-update-step h4 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 10px;
-  font-size: 1.15em;
-}
-.player-update-step h4 > span {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: #6b32a5;
-  background: #eee4fb;
-}
-.player-update-step .path-display {
-  overflow-wrap: anywhere;
-}
-.player-update-dialog .inline-buttons {
-  flex-wrap: wrap;
-}
-.player-update-progress {
-  margin-top: 20px;
-  padding: 16px;
-  border-radius: 12px;
-  background: #f5f2f9;
-}
-.player-update-progress progress {
-  width: 100%;
-  accent-color: #803bc1;
-}
-.player-update-progress .working::before {
-  content: '';
-  display: inline-block;
-  width: 15px;
-  height: 15px;
-  border: 2px solid #d6c0ee;
-  border-top-color: #803bc1;
-  border-radius: 50%;
-  margin-right: 10px;
-  animation: pocket-spin 1s linear infinite;
-}
-.player-write-confirm {
-  display: flex;
-  gap: 12px;
-  margin-top: 10px;
-}
-.player-write-confirm input {
-  width: 130px;
-  font: inherit;
-}
-.player-update-step details {
-  margin-bottom: 16px;
-}
-
 /* Collection looks mirror the open player format while keeping the app's round avatars. */
 .collection-cards {
   display: grid;
@@ -3818,8 +3743,7 @@ svg,
   background: #fff;
   box-shadow: 0 4px 12px #3d1d5424;
   overflow: hidden;
-  transform: translate(calc(var(--card-index) * 7px), calc(var(--card-index) * -2px))
-    rotate(calc(var(--card-index) * 4deg));
+  transform: translate(var(--stack-x, 0px), var(--stack-y, 0px)) rotate(var(--stack-angle, 0deg));
   transform-origin: center 85%;
   transition: transform 200ms ease;
 }
@@ -3843,11 +3767,33 @@ svg,
   color: #8a4db7;
   font-size: 36px;
 }
+.stack-card:nth-child(1) {
+  z-index: 3;
+  --fan-x: 0px;
+  --fan-angle: 0deg;
+}
+.stack-card:nth-child(2) {
+  z-index: 2;
+  --stack-x: -5px;
+  --stack-y: -2px;
+  --stack-angle: -4deg;
+  --fan-x: -23px;
+  --fan-angle: -16deg;
+}
+.stack-card:nth-child(3) {
+  z-index: 1;
+  --stack-x: 5px;
+  --stack-y: -2px;
+  --stack-angle: 4deg;
+  --fan-x: 23px;
+  --fan-angle: 16deg;
+}
+.collection-card .cover-trio .stack-card,
 .collection-card:hover .stack-card,
 .collection-card:focus-within .stack-card,
-.collection-live-preview:hover .stack-card {
-  transform: translateX(calc(var(--card-index) * 16px))
-    rotate(calc((var(--card-index) - (var(--card-count) - 1) / 2) * 10deg));
+.collection-live-preview:hover .stack-card,
+.collection-live-preview:focus-visible .stack-card {
+  transform: translateX(var(--fan-x, 0px)) rotate(var(--fan-angle, 0deg));
 }
 .collection-editor {
   width: min(760px, 92vw);
@@ -3868,6 +3814,11 @@ svg,
   background: #f7f3fb;
   border-radius: 12px;
   padding: 12px;
+}
+.collection-live-preview:focus-visible {
+  outline: 2px solid #b17ee8;
+  outline-offset: 4px;
+  border-radius: 12px;
 }
 .collection-design-controls {
   min-width: 0;
@@ -3928,110 +3879,78 @@ svg,
   max-width: 800px;
 }
 
-/* Firmware work has its own status; USB storage being unmounted is expected. */
-.device-panel.player-preparing {
-  background: #edf8ec;
+/* Track artwork is a visual choice; filenames remain secondary labels. */
+.track-icon-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #f5effa;
+  border: 1px solid #dfd2e9;
+  border-radius: 8px;
+  padding: 7px 4px;
+  font: inherit;
+  font-size: max(13px, var(--app-text));
+  cursor: pointer;
 }
-.device-panel.player-preparing .device-icon {
-  position: relative;
+.track-icon-choice:hover {
+  background: #eadcf6;
 }
-.device-panel.player-preparing .device-icon svg {
-  animation: player-dance 3.8s ease-in-out infinite;
-  overflow: visible;
+.icon-picker {
+  width: min(740px, 92vw);
 }
-.device-panel.player-preparing .clickwheel-player rect:first-child {
-  fill: #f1e3ff;
-  stroke: #8552af;
+.icon-search-form {
+  display: grid;
+  grid-template-columns: 160px 1fr auto;
+  align-items: end;
+  gap: 12px;
 }
-.device-panel.player-preparing .device-icon::after {
-  content: '✦';
-  position: absolute;
-  color: #9854cc;
-  font-size: 24px;
-  right: -8px;
-  top: -7px;
-  animation: player-sparkle 1.9s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes player-dance {
-  0%,
-  100% {
-    transform: scale(1) rotate(0deg);
-  }
-  25% {
-    transform: scale(0.72) rotate(0deg);
-  }
-  65% {
-    transform: scale(0.72) rotate(360deg);
-  }
-  85% {
-    transform: scale(1.07) rotate(360deg);
-  }
-}
-@keyframes player-sparkle {
-  0%,
-  100% {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2);
-  }
-}
-#view-player-progress {
-  align-self: flex-start;
-  padding: 4px 0;
-  font-weight: 650;
-}
-#player-detail-lines {
-  max-height: 240px;
+.icon-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+  gap: 10px;
+  padding: 6px 2px;
+  max-height: 48vh;
+  min-height: 110px;
   overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  background: #f7f3fa;
-  border: 1px solid #e4d9eb;
+  margin-bottom: 16px;
+}
+.icon-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 108px;
+  padding: 12px 6px;
+  border: 1px solid #e3d8eb;
   border-radius: 10px;
-  padding: 12px;
-  font-size: 12px;
-  line-height: 1.55;
-  user-select: text;
+  background: #faf7fd;
+  color: #35213f;
+  cursor: pointer;
+  font: inherit;
+  font-size: max(13px, var(--app-text));
 }
-#player-update-error {
-  white-space: pre-wrap;
+.icon-tile img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.icon-tile:hover,
+.icon-tile:focus-visible {
+  background: #eee1fa;
+  border-color: #9060b4;
+}
+.icon-tile span {
   overflow-wrap: anywhere;
-  max-height: 170px;
-  overflow: auto;
 }
-.player-connection-guide {
-  width: min(650px, 92vw);
-  text-align: center;
+.icon-tile small {
+  color: #75637f;
 }
-#player-guide-diagram {
-  width: 100%;
-  max-height: 310px;
+.default-icon {
+  font-size: 36px;
+  height: 48px;
 }
-.paperclip-press {
-  animation: pinhole-press 1.8s ease-in-out infinite;
-}
-@keyframes pinhole-press {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  55% {
-    transform: translateY(-16px);
-  }
-}
-.player-guide-success {
-  font-size: 80px;
-  color: #23893b;
-  padding: 24px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .device-panel.player-preparing .device-icon svg,
-  .device-panel.player-preparing .device-icon::after,
-  .paperclip-press {
-    animation: none;
-  }
+#yoto-client-id {
+  max-width: 480px;
 }

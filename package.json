@@ -1,6 +1,6 @@
 {
   "name": "pocket-drop",
-  "version": "4.7.4",
+  "version": "4.8.0",
   "description": "Audio library, track editing, collections and USB sync for Studio Pocket",
   "author": "Lindsey Schultz and Pocket Drop contributors",
   "license": "GPL-3.0-only",
@@ -8,25 +8,23 @@
   "main": "app/main.mjs",
   "workspaces": [
     "vendor/library-format",
-    "vendor/sync-engine",
-    "vendor/firmware-tools"
+    "vendor/sync-engine"
   ],
   "scripts": {
-    "build": "tsc -b vendor/library-format vendor/sync-engine vendor/firmware-tools",
+    "build": "tsc -b vendor/library-format vendor/sync-engine",
     "start": "electron .",
     "test": "npm run build && node --test test/*.test.mjs",
-    "dist:mac": "npm run build && node scripts/assemble-player-tools.mjs x64 && electron-builder --mac zip --x64 --publish never",
+    "dist:mac": "npm run build && electron-builder --mac zip --x64 --publish never",
     "dist:linux": "npm run build && electron-builder --linux dir --x64",
-    "dist:mac:intel": "npm run build && node scripts/assemble-player-tools.mjs x64 && electron-builder --mac zip --x64 --publish never",
+    "dist:mac:intel": "npm run build && electron-builder --mac zip --x64 --publish never",
     "dist:mac:apple-silicon": "python3 scripts/package-apple-silicon.py",
-    "pack:mac:apple-silicon": "npm run build && node scripts/assemble-player-tools.mjs arm64 && electron-builder --mac dir --arm64 --publish never",
+    "pack:mac:apple-silicon": "npm run build && electron-builder --mac dir --arm64 --publish never",
     "format": "prettier --write app ui test scripts/*.mjs scripts/*.cjs package.json .prettierrc.json .github/workflows/release.yml eslint.config.mjs",
     "format:check": "prettier --check app ui test scripts/*.mjs scripts/*.cjs package.json .prettierrc.json .github/workflows/release.yml eslint.config.mjs",
     "check": "npm run format:check && npm run lint && node scripts/check-syntax.mjs",
     "test:ui": "node scripts/ui-check.mjs && node scripts/studio-ui-check.mjs",
     "test:desktop": "node scripts/desktop-check.mjs && node scripts/studio-desktop-check.mjs",
     "lint": "eslint app ui scripts test",
-    "test:player-engine": "vitest run --root vendor/firmware-tools --maxWorkers=2 --no-file-parallelism",
     "test:library-format": "vitest run --root vendor/library-format --maxWorkers=2 --no-file-parallelism"
   },
   "dependencies": {
@@ -36,8 +34,7 @@
     "music-metadata": "12.3.4",
     "ogg-opus-decoder": "1.6.16",
     "plist": "3.1.0",
-    "yauzl": "3.4.0",
-    "@studio-pocket/firmware-tools": "*"
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
     "@types/node": "22.19.0",
@@ -81,7 +78,8 @@
       "!node_modules/opus-decoder/dist/**",
       "!assets/tools/**",
       "CHANGELOG.md",
-      "vendor/firmware-tools/Y2Player-MIT.txt"
+      "!vendor/firmware-tools/**",
+      "!node_modules/@studio-pocket/firmware-tools/**"
     ],
     "mac": {
       "category": "public.app-category.music",
@@ -100,10 +98,6 @@
         {
           "from": "assets/tools/7zz-darwin-${arch}",
           "to": "tools/7zz"
-        },
-        {
-          "from": "release/firmware-tools",
-          "to": "firmware-tools"
         }
       ]
     },

@@ -9,7 +9,7 @@ export function collectionStackHTML(group, state, picture, esc) {
     state.device.check?.recent?.playlists ?? [],
   );
   const label = cards.map((card) => card.title).join(', ');
-  return `<span class="cover-stack" role="img" aria-label="${esc(label)}" style="--card-count:${cards.length}">${cards.map((card, index) => `<span class="stack-card ${card.kind === 'icon' ? 'icon-card' : ''}" style="--card-index:${index};z-index:${3 - index}" aria-hidden="true">${card.src ? `<img class="${card.kind === 'icon' ? 'stack-icon' : ''}" src="${esc(card.src)}" alt="">` : '<span class="stack-glyph">♫</span>'}</span>`).join('')}</span>`;
+  return `<span class="cover-stack ${collectionLook(group) === 'covers' ? 'cover-trio' : ''}" role="img" aria-label="${esc(label)}">${cards.map((card) => `<span class="stack-card ${card.kind === 'icon' ? 'icon-card' : ''}" aria-hidden="true">${card.src ? `<img class="${card.kind === 'icon' ? 'stack-icon' : ''}" src="${esc(card.src)}" alt="">` : '<span class="stack-glyph">♫</span>'}</span>`).join('')}</span>`;
 }
 
 export function installCollectionAppearance({ getDraft, getPicture, getState, esc }) {
@@ -44,7 +44,7 @@ export function installCollectionAppearance({ getDraft, getPicture, getState, es
       look === 'recent'
         ? 'Recent covers follow listening order on Pocket. This preview uses the last connected player’s recent list, then collection order.'
         : look === 'covers'
-          ? 'Choose up to three covers. The first is the top card; an included collection picture takes the top position. Items without artwork are skipped.'
+          ? 'Choose up to three covers: front, left, then right. Hover over Pocket preview to fan them out. An included collection picture takes the front position; the remaining covers shift back.'
           : look === 'image'
             ? 'The picture fills a portrait card on Pocket. Choose a picture below; the icon is used if none is available.'
             : 'A single card with the collection’s icon. Older players also use this icon.';
@@ -57,7 +57,7 @@ export function installCollectionAppearance({ getDraft, getPicture, getState, es
     $('collection-cover-choices').innerHTML = Array.from(
       { length: 3 },
       (_, index) =>
-        `<div class="cover-choice"><label>${['Top cover', 'Second cover', 'Third cover'][index]}<select data-cover-slot="${index}"><option value="">No cover</option>${choices
+        `<div class="cover-choice"><label>${(group.image && picture ? ['Second cover (left)', 'Third cover (right)', 'Extra cover (hidden by picture)'] : ['First cover (front)', 'Second cover (left)', 'Third cover (right)'])[index]}<select data-cover-slot="${index}"><option value="">No cover</option>${choices
           .filter(({ id, row }) => row?.cover || covers.includes(id))
           .map(
             ({ id, row }) =>

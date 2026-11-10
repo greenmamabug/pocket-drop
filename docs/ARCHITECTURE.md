@@ -12,7 +12,7 @@ format and stages transfers. Vendor code is kept separate and is not reformatted
 | Operations | Coordinate selected audio, collections, edits, preparation | `workspace`, `library` |
 | Sources | Validate paths, inspect/extract ZIP/7z/folders, convert when needed | `archive`, `seven-zip`, `convert-audio`, `opus-worker` |
 | Device | Pin volume identity, reject links, stage/copy/verify, write groups | `device`, `volumes`, `eject` |
-| Player software | Pinned release verification, isolated upstream firmware engine, confirmation and recovery journal | `player-release`, `player-task`, `player-worker`, `player-runner`, `player-updater`, `player-ipc` |
+| Icon catalogues | Bounded public searches, local artwork, optional PKCE sign-in and encrypted credentials | `icon-catalog`, `icon-ipc`, `remote-data`, `yoto-account`, `ui/icon-picker` |
 | Persistence | Serialize mutations and atomically replace JSON | `catalog`, `settings-store`, `atomic-json` |
 | Metadata | Pure calculations separate from actual file probing | `audio-metadata`, `collection-state`, `audio-probe` |
 | Collection appearance | Shared display/preview/member rules and normalized portrait/icon assets | `collection-model`, `collection-artwork`, `ui/collection-appearance` |
@@ -51,3 +51,5 @@ Add regression tests for observed failure modes. Prefer a small boundary adapter
 or pure helper over another UI-specific copy of persistence or metadata logic.
 Avoid replacing the staged-transfer engine or removing integrity checks to improve
 benchmark numbers. Profile real USB hardware separately from simulated filesystems.
+
+Player firmware installation and updating are excluded from this app. Existing firmware backups and images remain on disk; no startup component loads or resumes them.

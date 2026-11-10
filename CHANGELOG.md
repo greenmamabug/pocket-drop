@@ -1,3 +1,12 @@
+# 4.8.0 — track icons and collection previews
+
+- Remove player firmware updating from the app: no updater controls, reset guide, recovery startup, IPC helpers, bundled flashing tools or firmware dependency. Existing backup folders, saved images and diagnostic files are left untouched. Normal audio sync and Pocket Drop app-update checks remain available.
+- Replace track-icon filenames with a visual picker. Browse existing track artwork, import a picture or search standard Yoto icons and Yotoicons.com, with paging and creator credits. Selected icons are normalized and stored locally with the saved edit.
+- Add optional personal Yoto icon setup using the user's own registered public client, browser PKCE sign-in and operating-system-encrypted credentials. No third-party client credentials are borrowed. Cancelled sign-ins and stale account searches cannot restore an old connection.
+- Name the collection option Cover trio, label front/left/right positions, fan out the collection editor on hover/focus and show saved trios fanned on the collection page. Use stylesheet positioning so previews work under the existing security policy.
+- Keep Save / Save and close, measured track length/size, larger customizable text and existing Inbox, audio-conversion and library features. Icon controls follow the app text-size setting.
+- Intel Mac release only. Personal-account authorization needs the user's registered Yoto client and was tested with a simulated account service; public catalogues and sample image URLs were checked live.
+
 # 4.7.4 — read-only connection diagnostics
 
 - Add a device-identity-checked USB diagnostic containing only read commands. It reads 128 MB to disposable Mac files without replacing the saved backup or prepared update. No write retry happens automatically.

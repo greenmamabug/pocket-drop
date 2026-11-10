@@ -410,9 +410,6 @@ function render() {
   $('eject').disabled = state.busy || !state.device.connected;
   $('connection-check').hidden = !state.device.connected;
   const d = state.device;
-  const playerWorking =
-    state.playerUpdate?.running &&
-    ['prepare', 'reuse', 'review', 'write', 'connection-test'].includes(state.playerUpdate.action);
   const ejecting = state.busy && state.operation === 'eject' && d.connected;
   $('eject').classList.toggle('ejecting', ejecting);
   $('eject').hidden = ejecting;
@@ -420,42 +417,24 @@ function render() {
   $('connection-check').hidden = !d.connected || ejecting;
   $('eject').setAttribute('aria-busy', String(ejecting));
   document.querySelector('.eject-caption').textContent = ejecting ? 'Ejecting…' : 'Eject';
-  $('device-panel').classList.toggle('connected', d.connected || playerWorking);
-  $('device-panel').classList.toggle(
-    'player-preparing',
-    playerWorking && state.playerUpdate.action !== 'write',
-  );
-  document.querySelector('.device-status').title = playerWorking
-    ? 'Follow the player software update instructions in Settings.'
-    : d.connected
-      ? 'Pocket connected'
-      : 'Connect with a USB data cable. Turn on USB storage when prompted on your device.';
+  $('device-panel').classList.toggle('connected', d.connected);
+  document.querySelector('.device-status').title = d.connected
+    ? 'Pocket connected'
+    : 'Connect with a USB data cable. Turn on USB storage when prompted on your device.';
   const used = d.connected && d.total ? Math.round(((d.total - d.free) / d.total) * 100) : 0;
   $('header-meter').hidden = !d.connected;
   $('header-meter').setAttribute('aria-valuenow', used);
   $('header-fill').style.width = Math.max(0, Math.min(100, used)) + '%';
   $('connection').classList.toggle('connected', d.connected);
-  $('device-state-label').textContent = playerWorking
-    ? state.playerUpdate.action === 'connection-test'
-      ? 'Testing USB connection'
-      : state.playerUpdate.action === 'write'
-        ? 'Updating player software'
-        : 'Preparing player update'
-    : ejecting
-      ? 'Ejecting, please wait…'
-      : d.connected
-        ? 'Connected'
-        : 'Disconnected';
-  $('connection-title').textContent = state.settings?.pocketName || 'MYO Pocket';
-  $('connection-detail').textContent = playerWorking
-    ? state.playerUpdate.action === 'connection-test'
-      ? 'Read-only test. The previous update remains incomplete.'
-      : state.playerUpdate.action === 'write'
-        ? 'Do not unplug until verification finishes.'
-        : 'Update in progress. You can view its progress below.'
+  $('device-state-label').textContent = ejecting
+    ? 'Ejecting, please wait…'
     : d.connected
-      ? `${bytes(d.free)} free of ${bytes(d.total)}`
-      : 'Turn on USB storage when prompted on your device.';
+      ? 'Connected'
+      : 'Disconnected';
+  $('connection-title').textContent = state.settings?.pocketName || 'MYO Pocket';
+  $('connection-detail').textContent = d.connected
+    ? `${bytes(d.free)} free of ${bytes(d.total)}`
+    : 'Turn on USB storage when prompted on your device.';
   $('connection-detail').hidden = false;
   const minutes = Math.floor((d.audioDurationMs ?? 0) / 60000);
   $('device-audio-duration').hidden = !d.connected || !d.initialized;
@@ -469,9 +448,7 @@ function render() {
   $('add-files').disabled = state.busy || state.scanning;
   $('choose-inbox').disabled = state.busy || state.scanning;
   $('refresh-interval').disabled = state.busy || state.scanning;
-  const operationProgress = playerWorking
-    ? { phase: state.playerUpdate.label, percent: state.playerUpdate.percent }
-    : state.progress;
+  const operationProgress = state.progress;
   $('progress-panel').hidden = !operationProgress;
   $('cancel').hidden = !(state.busy && state.operation === 'sync');
   if (operationProgress) {

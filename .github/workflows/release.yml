@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing version tag to build
         required: true
-        default: v4.7.4
+        default: v4.8.0
   push:
     tags: ['v*']
 
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.7.4' }}
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.8.0' }}
 
 jobs:
   test:
@@ -36,7 +36,6 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run test:library-format
-      - run: npm run test:player-engine
 
   build:
     needs: test
@@ -74,8 +73,6 @@ jobs:
       - run: python3 scripts/install-mac-electron.py "$BUILD_ARCH"
       - run: python3 scripts/macos-icons.py
       - run: npm run build
-      - name: Verify player updater downloads and native tools without a device
-        run: node scripts/player-tools-check.mjs
       - name: Test native Opus to AAC conversion
         run: |
           node --input-type=module - <<'JS'
@@ -95,18 +92,8 @@ jobs:
           JS
       - name: Test editor on macOS
         run: node scripts/studio-desktop-check.mjs
-        env:
-          POCKET_PLAYER_TOOL_CHECK: '1'
-      - name: Stage pinned native updater tools and corresponding sources
-        run: node scripts/assemble-player-tools.mjs "$BUILD_ARCH"
       - name: Package application
         run: npm exec -- electron-builder --mac dir --"$BUILD_ARCH" --config.electronDist=node_modules/electron/dist --publish never
-      - name: Verify updater inside the packaged Intel app without a device
-        if: matrix.arch == 'x64'
-        run: node scripts/studio-desktop-check.mjs
-        env:
-          POCKET_PLAYER_TOOL_CHECK: '1'
-          POCKET_DROP_PACKAGED_MAIN: ${{ github.workspace }}/release/mac/Pocket Drop.app/Contents/Resources/app.asar/app/main.mjs
       - name: Apply ad-hoc integrity signatures
         run: |
           python3 - <<'PY'
@@ -132,20 +119,14 @@ jobs:
                   sign(item)
           for item in sorted(app.rglob('*.app'), key=lambda p: len(p.parts), reverse=True):
               sign(item, 'plugin.plist' if '(Plugin)' in item.name else 'jit.plist')
-          subprocess.run(['node', 'scripts/player-bundle-manifest.mjs', str(app / 'Contents/Resources/firmware-tools'), arch], check=True)
           sign(app, 'jit.plist')
           subprocess.run(['codesign', '--verify', '--deep', '--strict', '--verbose=2', str(app)], check=True)
           PY
-      - name: Verify actual signed executable and stable bundled updater runtime
+      - name: Verify packaged icon services and absence of firmware tools
         env:
           ELECTRON_RUN_AS_NODE: '1'
         run: |
-          'release/mac/Pocket Drop.app/Contents/MacOS/Pocket Drop' "$GITHUB_WORKSPACE/scripts/signed-player-check.mjs" "$GITHUB_WORKSPACE/release/mac/Pocket Drop.app/Contents/Resources/app.asar/app/main.mjs" --require-bundled
-      - uses: actions/upload-artifact@v4
-        with:
-          name: player-tool-sources
-          path: release/player-tool-sources/*
-          retention-days: 14
+          'release/mac/Pocket Drop.app/Contents/MacOS/Pocket Drop' "$GITHUB_WORKSPACE/scripts/check-audio-only-package.mjs" "$GITHUB_WORKSPACE/release/mac/Pocket Drop.app/Contents/Resources"
       - name: Create download
         run: |
           if test "$BUILD_ARCH" = arm64; then APP_DIR=release/mac-arm64; else APP_DIR=release/mac; fi
@@ -175,15 +156,11 @@ jobs:
           pattern: mac-*
           path: release
           merge-multiple: true
-      - uses: actions/download-artifact@v4
-        with:
-          name: player-tool-sources
-          path: release
       - name: Include corresponding source and checksums
         run: |
           git archive --format=zip --prefix="Pocket-Drop-${RELEASE_TAG#v}/" --output="release/Pocket-Drop-${RELEASE_TAG#v}-source.zip" HEAD
           cd release
-          sha256sum *.zip *.tar.gz *.tar.bz2 > "SHA256SUMS-${RELEASE_TAG#v}.txt"
+          sha256sum *.zip > "SHA256SUMS-${RELEASE_TAG#v}.txt"
       - name: Upload verified files to draft release
         env:
           GH_TOKEN: ${{ github.token }}
