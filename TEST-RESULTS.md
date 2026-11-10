@@ -144,3 +144,25 @@ undefined-name linting and syntax checks pass; runtime audit reports zero known
 vulnerabilities. The desktop test caught and prompted correction of a missing
 import during this refactor; linting now guards this class of failure. Native Mac
 release and physical hardware verification boundaries remain documented.
+
+## 4.6.0 guided player updating
+
+113 application tests pass, including bounded/tampered downloads, cache recovery,
+prepared-image/identity/signer review, single-use WRITE confirmation, pending-write
+persistence and retry after restart, recovery from an existing backup after loss
+of app settings, safe backup-folder selection, failed preparation cleanup, full
+readback requirements and mounted/busy/unsupported-platform refusals.
+
+Both browser checks pass, including update confirmation, disabled write controls,
+phase progress, update-aware header text, reopening the wizard and narrow layout.
+Both normal Electron desktop scripts pass. An additional real Electron helper
+check verifies the actual official APK/signature from a local verified cache;
+the same check passes when loaded from a packaged ASAR.
+
+The unmodified upstream firmware-tools suite passes 162 tests in this minimal
+Linux host, with 54 conditional tests skipped because local e2fs/Android SDK tools
+are absent. Release CI explicitly installs e2fsprogs and runs the simulated-player
+suite, and checks actual Mac tool version/capability probes on Intel and Apple
+Silicon. Those probes do not open a player or flash anything. No physical Y2
+update, interruption or restore was performed in this environment. See
+`docs/PLAYER-UPDATES.md` and upstream's tested-hardware notes for the limits.

@@ -10,6 +10,7 @@ import {
   Notification,
   protocol,
   net,
+  powerSaveBlocker,
 } from 'electron';
 import fs from 'node:fs/promises';
 import { watch, appendFileSync, statSync, renameSync } from 'node:fs';
@@ -34,6 +35,7 @@ import {
 import { flushJsonWrites } from './atomic-json.mjs';
 import { createSettingsWriter } from './settings-store.mjs';
 import { installStudio } from './studio-ipc.mjs';
+import { installPlayerUpdates } from './player-ipc.mjs';
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'pocket-media',
@@ -614,6 +616,19 @@ else {
         protocol,
         net,
       });
+      await installPlayerUpdates({
+        app,
+        library,
+        workspace,
+        handle,
+        dialog,
+        shell,
+        win,
+        pause: pauseMonitoring,
+        resume: monitor,
+        record,
+        powerSaveBlocker,
+      });
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
@@ -677,7 +692,10 @@ else {
             message: library.preparation?.running
               ? 'Audio preparation is in progress.'
               : 'A device operation is in progress.',
-            detail: 'Wait for it to finish, or cancel the operation before closing.',
+            detail:
+              library.operation === 'player-update' && library.playerUpdate?.action === 'write'
+                ? 'Wait for the player update and verification to finish before closing. Do not unplug the player.'
+                : 'Wait for it to finish, or cancel the operation before closing.',
             buttons: ['OK'],
           });
         }

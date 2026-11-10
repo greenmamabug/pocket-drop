@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.5.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.5.0/Pocket-Drop-4.5.0-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.5.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.5.0/Pocket-Drop-4.5.0-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.6.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.6.0/Pocket-Drop-4.6.0-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.6.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.6.0/Pocket-Drop-4.6.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
@@ -127,7 +127,13 @@ The main Audio Library has no collection dropdown or Prepare Audio button. Sync 
 
 Normal **Sync** now includes pending collection changes, and is available for collection-only changes even when no audio is selected. It copies the selected audio and the collection arrangement. **Sync Collections** on the Collections page additionally copies any missing member audio. Creating or editing a collection saves it locally until you click one of these Sync buttons. Pending/synced status is displayed on that page.
 
-After syncing, eject Pocket and leave USB-storage mode so the player can reload its library. The inspected open-source player hides empty collections and collections with no available member audio. It must support the groups format; no player firmware is changed by Pocket Drop.
+After syncing, eject Pocket and leave USB-storage mode so the player can reload its library. The inspected open-source player hides empty collections and collections with no available member audio. Audio/collection sync does not change player software. The separate player-update wizard is described below.
+
+## Update player software
+
+Use **Settings → Player software → Update player software…** to update an existing Studio Pocket installation to **0.7.0 (pre-release)**. Choose a backup folder, download/verify the official files, eject Pocket, and follow the powered-off/reset-pinhole instructions. Reading and preparation happen before a separate typed WRITE confirmation. The actual player's identity and signing-key compatibility must match; the full written image is read back before success is shown. No Node or Python installation is required.
+
+This uses Stuart's unmodified public GPL firmware engine. Supported bases are 3.2.0 with FM Radio and 3.2.1; other builds and new signing keys are refused. Keep your original per-player backup. Failed writes retain a reviewed retry flow across app restarts. [Instructions, recovery and verification limits](docs/PLAYER-UPDATES.md).
 
 ## Track details
 

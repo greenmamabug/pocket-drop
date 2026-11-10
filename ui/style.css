@@ -3672,3 +3672,80 @@ svg,
 .track-name small {
   overflow-wrap: anywhere;
 }
+/* Player software wizard: phase progress stays separate from audio transfer state. */
+.player-update-dialog {
+  width: min(720px, 90vw);
+  max-height: 88vh;
+  overflow: auto;
+}
+.player-update-dialog h3 {
+  margin: 0;
+}
+.player-update-dialog p {
+  line-height: 1.5;
+}
+.player-release-note {
+  padding: 16px 18px;
+  background: #f4effc;
+  border-radius: 12px;
+}
+.player-update-step {
+  border-top: 1px solid #e5dfeb;
+  margin-top: 22px;
+  padding-top: 18px;
+}
+.player-update-step h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 1.15em;
+}
+.player-update-step h4 > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #6b32a5;
+  background: #eee4fb;
+}
+.player-update-step .path-display {
+  overflow-wrap: anywhere;
+}
+.player-update-dialog .inline-buttons {
+  flex-wrap: wrap;
+}
+.player-update-progress {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f5f2f9;
+}
+.player-update-progress progress {
+  width: 100%;
+  accent-color: #803bc1;
+}
+.player-update-progress .working::before {
+  content: '';
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 2px solid #d6c0ee;
+  border-top-color: #803bc1;
+  border-radius: 50%;
+  margin-right: 10px;
+  animation: pocket-spin 1s linear infinite;
+}
+.player-write-confirm {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+}
+.player-write-confirm input {
+  width: 130px;
+  font: inherit;
+}
+.player-update-step details {
+  margin-bottom: 16px;
+}

@@ -1,0 +1,72 @@
+{
+    "$comment": "Identity of the stock 3.2.1 firmware base, from its published ROM. Images are NOT in this repo; download from the URL below and verify these hashes before use.",
+    "device": "Innioasis Y2",
+    "firmwareVersion": "3.2.1",
+    "source": {
+        "url": "https://github.com/y1-community/y1-stock-rom/releases/tag/3.2.1",
+        "asset": "rom_y2.zip",
+        "sha256": "7c01dbcc7418c179c22f87cf78cad8f07832339c70577c39235b796528d6d71a",
+        "sizeBytes": 355560849,
+        "note": "Community-hosted copy of Innioasis' stock firmware. Redistribution rights are unconfirmed; see docs/licensing/third-party.md."
+    },
+    "platform": {
+        "soc": "MT6582",
+        "mediatekProject": "eastaeon82_wet_kk",
+        "android": "4.4.2",
+        "apiLevel": 19,
+        "buildId": "KOT49H",
+        "buildFingerprint": "Y2/Y2/Y2:4.4.2/KOT49H/1786709305:user/test-keys",
+        "swVersion": "Y2-v1.0.0",
+        "customBuildVersion": "1786709305",
+        "storage": "EMMC",
+        "abi": ["armeabi-v7a", "armeabi"]
+    },
+    "files": {
+        "MT6582_Android_scatter.txt": { "sha256": "e5fe03e9f3219cc9b5ead27892f2ddb722acc16adce3306d27feb87893cd977e", "sizeBytes": 7666 },
+        "system.img": { "sha256": "d020da56f490bada6e2bdb183b1c5517cd7ee7100909f3066d9b712cc84bff36", "sizeBytes": 859826928, "format": "raw ext4 (not Android sparse)", "fsBytes": 859832320, "blockSize": 4096, "blocks": 209920, "freeBlocks": 80373 },
+        "boot.img": { "sha256": "f6090dea9b60dde2e46aa0111d5d630cf7729397d6bd7a25cf5ed19495142c42", "sizeBytes": 5656576, "format": "Android bootimg v0, page 2048, MTK ROOTFS-headed gzip cpio ramdisk" }
+    },
+    "partitions": [
+        { "index": 0, "name": "PRELOADER", "file": "preloader_eastaeon82_wet_kk.bin", "physicalStart": "0x0", "size": "0x1400000", "region": "EMMC_BOOT_1", "op": "BOOTLOADERS", "download": true, "studioPocketTouches": false },
+        { "index": 1, "name": "MBR", "file": "MBR", "physicalStart": "0x0", "size": "0x80000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 2, "name": "EBR1", "file": "EBR1", "physicalStart": "0x80000", "size": "0x80000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 3, "name": "PRO_INFO", "file": null, "physicalStart": "0x100000", "size": "0x300000", "op": "PROTECTED", "download": false, "studioPocketTouches": false },
+        { "index": 4, "name": "NVRAM", "file": null, "physicalStart": "0x400000", "size": "0x500000", "op": "BINREGION", "download": false, "studioPocketTouches": false },
+        { "index": 5, "name": "PROTECT_F", "file": null, "physicalStart": "0x900000", "size": "0xa00000", "op": "PROTECTED", "download": false, "studioPocketTouches": false },
+        { "index": 6, "name": "PROTECT_S", "file": null, "physicalStart": "0x1300000", "size": "0xa00000", "op": "PROTECTED", "download": false, "studioPocketTouches": false },
+        { "index": 7, "name": "SECCFG", "file": null, "physicalStart": "0x1d00000", "size": "0x20000", "op": "INVISIBLE", "download": false, "studioPocketTouches": false },
+        { "index": 8, "name": "UBOOT", "file": "lk.bin", "physicalStart": "0x1d20000", "size": "0x60000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 9, "name": "BOOTIMG", "file": "boot.img", "physicalStart": "0x1d80000", "size": "0x1000000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 10, "name": "RECOVERY", "file": "recovery.img", "physicalStart": "0x2d80000", "size": "0x1000000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 11, "name": "SEC_RO", "file": "secro.img", "physicalStart": "0x3d80000", "size": "0x600000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 12, "name": "MISC", "file": null, "physicalStart": "0x4380000", "size": "0x80000", "op": "INVISIBLE", "download": false, "studioPocketTouches": false },
+        { "index": 13, "name": "LOGO", "file": "logo.bin", "physicalStart": "0x4400000", "size": "0x300000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 14, "name": "EBR2", "file": "EBR2", "physicalStart": "0x4700000", "size": "0x80000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 15, "name": "EXPDB", "file": null, "physicalStart": "0x4780000", "size": "0xa00000", "op": "INVISIBLE", "download": false, "studioPocketTouches": false },
+        { "index": 16, "name": "ANDROID", "file": "system.img", "physicalStart": "0x5180000", "size": "0x33400000", "op": "UPDATE", "download": true, "studioPocketTouches": true },
+        { "index": 17, "name": "CACHE", "file": "cache.img", "physicalStart": "0x38580000", "size": "0x7e00000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 18, "name": "USRDATA", "file": "userdata.img", "physicalStart": "0x40380000", "size": "0x32000000", "op": "UPDATE", "download": true, "studioPocketTouches": false },
+        { "index": 19, "name": "FAT", "file": null, "physicalStart": "0x72380000", "size": "0x0", "op": "INVISIBLE", "download": false, "studioPocketTouches": false, "note": "User storage exposed over USB mass storage (vold sdcard0 = emmc@fat)" },
+        { "index": 20, "name": "BMTPOOL", "file": null, "physicalStart": "0xffff00a8", "size": "0x1500000", "op": "RESERVED", "download": false, "studioPocketTouches": false }
+    ],
+    "linearAddressOffset": "0x1400000",
+    "stockLauncher": {
+        "path": "/system/priv-app/MyLauncher.apk",
+        "package": "com.innioasis.y2",
+        "versionName": "3.2.1",
+        "homeActivity": "com.innioasis.y1.activity.SplashActivity",
+        "minSdk": 17,
+        "targetSdk": 34,
+        "sizeBytes": 61818470,
+        "sha256": "1b3d81b98f62943656d3b7e82e4c582ad9b041d803b74a8496311a0d7fdc2bc3",
+        "signerSha256": "6c983a05e7cf0880f3b5f9c1d8030aaf432fccceb7166ec5b6507047bb17dc42",
+        "signerDn": "EMAILADDRESS=dsj@innioasis.com, CN=JUN, OU=CRT, O=INNIOASIS, L=ShenZhen, ST=guangdong, C=CN"
+    },
+    "bootDefaults": {
+        "ro.secure": "1",
+        "ro.debuggable": "0",
+        "ro.adb.secure": "1",
+        "persist.sys.usb.config": "mass_storage",
+        "adbdPresentInRamdisk": false
+    }
+}

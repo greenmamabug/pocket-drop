@@ -66,6 +66,7 @@ export class Library extends EventEmitter {
         : false,
       undoAvailable: !!this.catalog?.data.undo?.items?.length,
       preparation: this.preparation ?? null,
+      playerUpdate: this.playerUpdate ?? null,
       duplicates: this.duplicates ?? { checking: false, groups: [] },
       collectionPictures: Object.fromEntries(
         Object.entries(this.catalog?.data.collectionPictures ?? {}).map(([id, p]) => [

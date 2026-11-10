@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+import { installPlayerUpdateUI } from './player-update.js';
 const panels = `
 <dialog id="audio-editor" class="audio-editor"><div class="editor-heading"><div><span class="eyebrow">AUDIO DETAILS</span><h3>Edit audio</h3></div><button class="text-button" id="editor-close">Close</button></div><p id="editor-notice" class="notice" hidden></p><div class="editor-summary"><div><div class="cover-crop-preview" id="cover-crop-preview"><img id="editor-cover" alt="Cover preview"></div><button class="text-button" id="change-cover">Change cover…</button></div><div class="editor-fields"><label>Title<input id="editor-title" maxlength="200"></label><div class="cover-controls"><label>Cover framing<select id="cover-mode"><option value="fit">Fit whole image</option><option value="fill">Fill card shape</option></select></label><label>Vertical position<input id="cover-position" type="range" min="0" max="100" value="50"></label></div><p class="hint">Edits apply to the version you sync. Your Inbox originals stay unchanged.</p></div></div><div class="track-tools"><label>Find a track<input id="track-search" type="search" placeholder="Search tracks…"></label><button class="text-button" id="import-track-icon">Import track icon…</button><button class="text-button" id="reset-track-edits">Reset to original details</button></div><p class="hint">Drag the grip or use ↑ and ↓ to reorder. Assign icons using each track’s icon menu. Delete excludes a track from this version; Restore brings it back.</p><div id="track-list" class="track-list"></div><div class="audio-preview"><span id="preview-track-name">Choose Play on a track to preview it.</span><audio id="track-player" controls preload="none"></audio><span id="preview-error" class="hint" hidden></span></div><div class="editor-footer"><button class="text-button danger" id="trash-original-tracks" hidden>Move excluded originals to Trash…</button><span id="editor-save-status" role="status"></span><button class="button" id="editor-save-only">Save</button><button class="button primary" id="editor-save">Save and close</button></div></dialog>
 <dialog id="collection-dialog" class="studio-dialog"><h3 id="collection-dialog-title">Collection</h3><div class="collection-picture-controls"><img id="collection-picture-preview" class="collection-picture" alt="Collection picture" hidden><button class="button" id="collection-picture-change">Change picture…</button><button class="text-button" id="collection-picture-clear">Clear picture</button></div><label>Name<input id="collection-name" maxlength="40"></label><label>Find audio<input id="collection-search" type="search" placeholder="Search titles…"></label><p class="hint">Choose members, then drag selected items or use ↑ and ↓ to arrange their order on Pocket. Choosing an item from another collection moves it here.</p><div id="collection-members" class="collection-members"></div><div class="dialog-actions"><button class="button" id="collection-cancel">Cancel</button><button class="button primary" id="collection-save">Save collection</button></div></dialog>
@@ -19,6 +20,7 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
         toast(error.message.replace(/^Error invoking remote method '[^']+': Error: /, ''));
       }
     };
+  const playerUpdates = installPlayerUpdateUI({ api, guarded, getState });
   let documentData = null,
     dirty = false,
     opening = false,
@@ -707,6 +709,7 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
   }
   setInterval(updatePreparationTime, 1000);
   function render(state) {
+    playerUpdates.render(state);
     $('undo-removal').hidden = !state.undoAvailable;
     $('undo-removal').disabled = state.busy || !state.device.connected;
     $('prepare-audio').hidden = !state.rows.some(

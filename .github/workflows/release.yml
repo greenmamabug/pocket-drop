@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing version tag to build
         required: true
-        default: v4.5.0
+        default: v4.6.0
   push:
     tags: ['v*']
 
@@ -14,11 +14,11 @@ permissions:
   contents: read
 
 env:
-  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.5.0' }}
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.6.0' }}
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -29,12 +29,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg
+      - run: sudo apt-get update -qq && sudo apt-get install -y ffmpeg e2fsprogs
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: npm run check
       - run: npm test
+      - run: npm run test:player-engine
 
   build:
     needs: test
@@ -74,6 +75,8 @@ jobs:
       - run: python3 scripts/install-mac-electron.py "$BUILD_ARCH"
       - run: python3 scripts/macos-icons.py
       - run: npm run build
+      - name: Verify player updater downloads and native tools without a device
+        run: node scripts/player-tools-check.mjs
       - name: Test native Opus to AAC conversion
         if: matrix.arch == 'arm64'
         run: |
@@ -95,6 +98,8 @@ jobs:
       - name: Test editor on macOS
         if: matrix.arch == 'arm64'
         run: node scripts/studio-desktop-check.mjs
+        env:
+          POCKET_PLAYER_TOOL_CHECK: '1'
       - name: Package application
         run: npm exec -- electron-builder --mac dir --"$BUILD_ARCH" --config.electronDist=node_modules/electron/dist --publish never
       - name: Apply ad-hoc integrity signatures
@@ -139,7 +144,7 @@ jobs:
 
   upload-draft:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write

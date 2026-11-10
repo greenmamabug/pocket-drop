@@ -15,4 +15,11 @@ const converter = main
   ? 'file://' + path.join(path.dirname(main), 'convert-audio.mjs')
   : '../app/convert-audio.mjs';
 globalThis.pocketDecodeOpus = (await import(converter)).decodeOpus;
+globalThis.pocketTestPlayerDownload = async (cache) => {
+  const module = main
+    ? 'file://' + path.join(path.dirname(main), 'player-runner.mjs')
+    : '../app/player-runner.mjs';
+  const { PlayerRunner } = await import(module);
+  return new PlayerRunner().run({ action: 'download', cache, arch: 'x64' }, () => {});
+};
 await import(main ?? '../app/main.mjs');

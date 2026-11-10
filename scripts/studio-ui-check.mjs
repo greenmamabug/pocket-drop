@@ -342,6 +342,57 @@ try {
   await page.locator('#editor-save').click();
   await page.locator('#audio-editor').waitFor({ state: 'hidden' });
   await page.setViewportSize({ width: 960, height: 700 });
+  await page.locator('[data-page=settings]').click();
+  await page.evaluate(() => {
+    window.state.playerUpdate = {
+      supported: true,
+      phase: 'prepared',
+      running: false,
+      token: 'reviewed-update',
+      firmwareDir: '/Users/Test/Player Backups',
+      summary: {
+        unitId: '1234567890abcdef1234567890abcdef',
+        checklist: ['Only this player’s measured system partition is written.'],
+      },
+      label: 'Backup saved and update prepared.',
+    };
+    window.sendState(window.state);
+  });
+  await page.locator('#manage-player').click();
+  assert.equal(await page.locator('#player-write').isDisabled(), true);
+  await page.locator('#player-confirm-write').fill('WRITE');
+  assert.equal(await page.locator('#player-write').isDisabled(), false);
+  await page.locator('#player-write').click();
+  assert.ok(
+    await page.evaluate(() =>
+      window.calls.some(
+        (c) => c[0] === 'playerWrite' && c[1] === 'WRITE' && c[2] === 'reviewed-update',
+      ),
+    ),
+  );
+  await page.evaluate(() => {
+    window.state.busy = true;
+    Object.assign(window.state.playerUpdate, {
+      running: true,
+      phase: 'writing',
+      action: 'write',
+      token: null,
+      label: 'Writing player software — do not unplug',
+      percent: 35,
+    });
+    window.sendState(window.state);
+  });
+  assert.equal(await page.locator('#player-cancel').isHidden(), true);
+  assert.equal(await page.locator('#player-read').isDisabled(), true);
+  assert.equal(await page.locator('#player-confirm-write').inputValue(), '');
+  assert.equal(await page.locator('#player-update-progress').getAttribute('value'), '35');
+  assert.equal(await page.locator('#device-state-label').innerText(), 'Updating player software');
+  assert.match(await page.locator('#connection-detail').innerText(), /Do not unplug/);
+  await page.screenshot({ path: '/tmp/pocket-player-update-preview.png' });
+  await page.locator('#player-update-close').click();
+  await page.locator('#manage-player').click();
+  assert.match(await page.locator('#player-update-status').innerText(), /Writing player software/);
+  await page.locator('#player-update-close').click();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 960);
   assert.deepEqual(errors, []);
   console.log(

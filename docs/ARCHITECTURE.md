@@ -12,6 +12,7 @@ format and stages transfers. Vendor code is kept separate and is not reformatted
 | Operations | Coordinate selected audio, collections, edits, preparation | `workspace`, `library` |
 | Sources | Validate paths, inspect/extract ZIP/7z/folders, convert when needed | `archive`, `seven-zip`, `convert-audio`, `opus-worker` |
 | Device | Pin volume identity, reject links, stage/copy/verify, write groups | `device`, `volumes`, `eject` |
+| Player software | Pinned release verification, isolated upstream firmware engine, confirmation and recovery journal | `player-release`, `player-task`, `player-worker`, `player-runner`, `player-updater`, `player-ipc` |
 | Persistence | Serialize mutations and atomically replace JSON | `catalog`, `settings-store`, `atomic-json` |
 | Metadata | Pure calculations separate from actual file probing | `audio-metadata`, `collection-state`, `audio-probe` |
 | Background | Quiet duration/duplicate discovery, cancellation, cache reuse | `duration-index`, workspace duplicate scheduler |

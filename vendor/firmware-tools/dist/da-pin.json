@@ -1,0 +1,8 @@
+{
+    "file": "MTK_AllInOne_DA_mt6590.bin",
+    "url": "https://raw.githubusercontent.com/bkerler/mtkclient/7cb40e727727dfe3faa065eefb29b16ed29bbdf1/mtkclient/Loader/MTK_AllInOne_DA_mt6590.bin",
+    "sha256": "49a1413765ed0e21fbd2c62f0e295665d0236eeb255846bd77f3329a3a86cc64",
+    "sizeBytes": 7612280,
+    "upstreamCommit": "7cb40e727727dfe3faa065eefb29b16ed29bbdf1",
+    "note": "MediaTek's download agent, fetched by the user's machine at first use; not distributed by this project"
+}

@@ -1,0 +1,42 @@
+{
+  "name": "@studio-pocket/firmware-tools",
+  "version": "0.1.0",
+  "description": "Prepare, verify and plan the flashing of a Studio Pocket system image for the Innioasis Y2. Never flashes anything itself.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "studio-pocket-firmware": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "COPYING.commercial",
+    "Y2Player-MIT.txt"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "cli": "node --experimental-strip-types src/cli.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2",
+    "vitest": "^3.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  }
+}

@@ -10,9 +10,15 @@ Pocket Drop is distributed under **GPL-3.0-only**, consistent with its use of St
 - Vendored packages: `packages/library-format`, `packages/sync-engine`.
 - Upstream source is preserved in `vendor/`. Only the sync-engine workspace dependency specifier in package.json is adjusted from `workspace:*` to `*` for npm workspaces. Runtime source is unchanged.
 - Licence: GPL-3.0-only, or a separate commercial licence from Ashworth Digital Ltd. COPYING.commercial is included where supplied upstream. This distribution uses the GPL option.
-- Firmware code, flashing binaries and MediaTek tools are neither included nor invoked.
+- The sync/library packages above remain pinned to that revision. Player updating uses the separate firmware-tools pin below.
 
 Pocket Drop's adapter adds safe ZIP access, Chrome archive metadata synthesis, artwork hash comparison, local discovery, USB-volume/identity checks, and a graphical UI. Planning, transfers, removal, state cleanup, and library index writes use the upstream engine.
+
+## Studio Pocket player updater (4.6.0)
+
+`vendor/firmware-tools` preserves the public GPL-3.0-only firmware engine source from Studio Pocket **v0.7.0**, commit `06f11b08ff4a10c9ab4d38ea4000869090298174` (Ashworth Digital Ltd), with its LICENSE and COPYING.commercial. Runtime source is unchanged. The original package manifest and build configuration are retained; compiled output is built from the included source. No proprietary Studio Pocket desktop code is used.
+
+The app fetches the official APK, e2fsprogs and architecture-specific mtkclient tool archives directly from https://github.com/MYO-Studio/studio-pocket/releases/tag/v0.7.0 on the user's computer. Those binaries are not bundled in Pocket Drop. Exact archive hashes and APK signer are pinned in `app/player-release.mjs`. Downloaded archives retain upstream `licences/` and `BUNDLE-INFO.json`; the same upstream release provides corresponding GPL/LGPL sources and SPDX bills of materials. The MediaTek agent is not distributed: the unmodified firmware engine fetches it from its pinned upstream source and verifies it before use. The updater exposes no unchecked-agent or new-signer bypass. See `docs/PLAYER-UPDATES.md` for the operation and testing limits.
 
 ## Other runtime dependencies
 

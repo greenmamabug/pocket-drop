@@ -1,3 +1,12 @@
+# 4.6.0 — guided player software updates
+
+- Add a separate Settings wizard for updating existing Studio Pocket players to the official 0.7.0 pre-release.
+- Preserve Stuart’s public GPL firmware engine, official APK signature/hash checks, per-player identity/layout checks and signing-key compatibility.
+- Download architecture-specific Mac tools on demand; run image/USB work in an isolated process with phase progress and read/preparation cancellation.
+- Save the backup and prepare first; require one-use typed WRITE confirmation, rehash the prepared image, and verify the full device readback before success.
+- Retain interrupted-write recovery across app restarts, serialize helpers per backup folder, block concurrent sync/eject/quit, and prevent automatic app suspension.
+- Document compatibility, backups, pre-release status and hardware testing limits. Inbox originals and existing audio sync remain separate.
+
 # 4.5.0 — maintenance audit
 
 - Centralize serialized atomic JSON writes for settings, activity, edits and index caches; flush pending writes at shutdown.

@@ -1,6 +1,6 @@
 {
   "name": "pocket-drop",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "description": "Audio library, track editing, collections and USB sync for Studio Pocket",
   "author": "Lindsey Schultz and Pocket Drop contributors",
   "license": "GPL-3.0-only",
@@ -8,10 +8,11 @@
   "main": "app/main.mjs",
   "workspaces": [
     "vendor/library-format",
-    "vendor/sync-engine"
+    "vendor/sync-engine",
+    "vendor/firmware-tools"
   ],
   "scripts": {
-    "build": "tsc -b vendor/library-format vendor/sync-engine",
+    "build": "tsc -b vendor/library-format vendor/sync-engine vendor/firmware-tools",
     "start": "electron .",
     "test": "npm run build && node --test test/*.test.mjs",
     "dist:mac": "npm run build && electron-builder --mac zip --x64 --publish never",
@@ -24,7 +25,8 @@
     "check": "npm run format:check && npm run lint && node scripts/check-syntax.mjs",
     "test:ui": "node scripts/ui-check.mjs && node scripts/studio-ui-check.mjs",
     "test:desktop": "node scripts/desktop-check.mjs && node scripts/studio-desktop-check.mjs",
-    "lint": "eslint app ui scripts test"
+    "lint": "eslint app ui scripts test",
+    "test:player-engine": "vitest run --root vendor/firmware-tools --maxWorkers=2 --no-file-parallelism"
   },
   "dependencies": {
     "@studio-pocket/library-format": "*",
@@ -33,7 +35,8 @@
     "music-metadata": "12.3.4",
     "ogg-opus-decoder": "1.6.16",
     "plist": "3.1.0",
-    "yauzl": "3.4.0"
+    "yauzl": "3.4.0",
+    "@studio-pocket/firmware-tools": "*"
   },
   "devDependencies": {
     "@types/node": "22.19.0",
@@ -50,7 +53,7 @@
   "build": {
     "appId": "app.pocketdrop.desktop",
     "productName": "Pocket Drop",
-    "copyright": "Pocket Drop by Lindsey Schultz; Studio Pocket © Ashworth Digital Ltd",
+    "copyright": "Pocket Drop by Lindsey Schultz; Studio Pocket \u00a9 Ashworth Digital Ltd",
     "directories": {
       "output": "release"
     },
@@ -76,7 +79,8 @@
       "!node_modules/ogg-opus-decoder/dist/**",
       "!node_modules/opus-decoder/dist/**",
       "!assets/tools/**",
-      "CHANGELOG.md"
+      "CHANGELOG.md",
+      "vendor/firmware-tools/Y2Player-MIT.txt"
     ],
     "mac": {
       "category": "public.app-category.music",

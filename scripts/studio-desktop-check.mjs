@@ -50,6 +50,17 @@ const application = await electron.launch({
 try {
   const page = await application.firstWindow(),
     errors = [];
+  if (process.env.POCKET_PLAYER_TOOL_CHECK === '1') {
+    if (process.env.POCKET_PLAYER_ASSET_CACHE)
+      await fs.cp(process.env.POCKET_PLAYER_ASSET_CACHE, path.join(root, 'player-download-test'), {
+        recursive: true,
+      });
+    const result = await application.evaluate(
+      async (_electron, cache) => globalThis.pocketTestPlayerDownload(cache),
+      path.join(root, 'player-download-test'),
+    );
+    assert.equal(result.version, '0.7.0');
+  }
   page.on('pageerror', (e) => errors.push(e.message));
   await page.getByText('Desktop story', { exact: true }).waitFor();
   await page.locator('.audio-open').click();
