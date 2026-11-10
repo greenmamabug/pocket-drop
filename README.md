@@ -8,7 +8,7 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.7.1](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.1/Pocket-Drop-4.7.1-mac-x64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.7.2](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.2/Pocket-Drop-4.7.2-mac-x64.zip).
 - **Apple Silicon (M-series, previous release):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
@@ -152,3 +152,7 @@ hardware validation. Run `npm run check`, `npm test`, `npm run test:ui` and
 code consistent. Vendored upstream code is excluded from formatting.
 
 Player-update failures are saved in Recent Activity. In Settings, choose **View update progress**, **Continue player update**, or **Review update error** to reopen the wizard. **Details…** shows timestamped reader output, including the final lines of a traceback. If Back up & prepare fails, no update was written to the player; reconnect/power off as prompted and retry. An interrupted write is different: retain the backup and use the existing review/retry recovery flow.
+
+To skip repeating a completed player read, choose its backup folder and click **Use existing backup**. Pocket Drop checks the saved image’s size and hash, verifies its signing-key compatibility, and prepares locally. The existing backup reflects player software as it was when read; later software changes are not included. Player identity and full readback verification still apply when writing. A prepared update can also be reopened with **Review saved update** without another backup.
+
+**Check update files** now starts the USB updater inside the same helper used by actual updates, before any player backup or write. Cold startup is allowed up to 90 seconds on older Macs. A failed check shows actual startup output in Details and Recent Activity rather than instructions to rebuild developer scripts. The underlying USB failure may still need diagnosis on the affected Mac; hardware was not available in the build environment.

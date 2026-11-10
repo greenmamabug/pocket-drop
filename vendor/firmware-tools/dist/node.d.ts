@@ -60,6 +60,16 @@ export declare function envOverrides(env?: NodeJS.ProcessEnv): FirmwareOverrides
  * `timeoutMs` is killed and fails. Rejects when the tool cannot be started at all.
  */
 export declare function probeTool(binary: string, cwd: string, env: NodeJS.ProcessEnv, onLog: (line: string) => void, timeoutMs?: number): Promise<boolean>;
+/** Pocket Drop: retain startup failures for the app's error details. Never opens a player. */
+export declare function probeToolReport(binary: string, cwd: string, env: NodeJS.ProcessEnv, onLog: (line: string) => void, timeoutMs?: number): Promise<MtkProbeReport>;
+export interface MtkProbeReport {
+    passed: boolean;
+    stdout: string;
+    stderr: string;
+    timedOut: boolean;
+    code: number | null;
+    signal: string | null;
+}
 /**
  * Runs one mtkclient script plan with cwd = plan.dir, streaming lines split on \n and \r.
  * With `expectCid` the tool must first pass the capability probe (`probeTool`): one that fails it

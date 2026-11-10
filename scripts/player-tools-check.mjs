@@ -21,6 +21,7 @@ try {
     () => {},
   );
   assert.equal(result.version, PLAYER_VERSION);
+  assert.equal(result.toolIdentityVerified, true);
   if (process.platform === 'darwin') {
     const dir = path.join(root, PLAYER_VERSION),
       e2fs = path.join(root, 'e2fs'),

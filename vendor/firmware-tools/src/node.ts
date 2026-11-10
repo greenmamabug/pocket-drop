@@ -241,26 +241,39 @@ export async function probeTool(binary: string, cwd: string, env: NodeJS.Process
     return (await runProbe(binary, cwd, env, onLog, timeoutMs)).passed;
 }
 
+/** Pocket Drop: retain startup failures for the app's error details. Never opens a player. */
+export async function probeToolReport(binary: string, cwd: string, env: NodeJS.ProcessEnv, onLog: (line: string) => void, timeoutMs = PROBE_TIMEOUT_MS): Promise<MtkProbeReport> {
+    return runProbe(binary, cwd, env, onLog, timeoutMs);
+}
+export interface MtkProbeReport {
+    passed: boolean;
+    stdout: string;
+    stderr: string;
+    timedOut: boolean;
+    code: number | null;
+    signal: string | null;
+}
+
 /** `probeTool`, keeping everything the tool printed so a refused run's result can carry it. */
-function runProbe(binary: string, cwd: string, env: NodeJS.ProcessEnv, onLog: (line: string) => void, timeoutMs: number): Promise<{ passed: boolean; stdout: string; stderr: string }> {
+function runProbe(binary: string, cwd: string, env: NodeJS.ProcessEnv, onLog: (line: string) => void, timeoutMs: number): Promise<MtkProbeReport> {
     return new Promise((resolve, reject) => {
         const child = spawn(binary, [], { cwd, env: { ...env, STUDIO_POCKET_PROBE: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
         let stdout = '';
         let stderr = '';
         let answered = false;
         let settled = false;
-        const settle = (passed: boolean) => {
+        const settle = (passed: boolean, code: number | null = null, signal: string | null = null, timedOut = false) => {
             if (settled) return;
             settled = true;
             clearTimeout(timer);
-            resolve({ passed, stdout, stderr });
+            resolve({ passed, stdout, stderr, code, signal, timedOut });
         };
         const timer = setTimeout(() => {
             child.kill('SIGKILL');
             // Do not wait for the pipes: a grandchild of the tool could hold them open.
             child.stdout?.destroy();
             child.stderr?.destroy();
-            settle(false);
+            settle(false, null, 'SIGKILL', true);
         }, timeoutMs);
         const emit = (line: string) => {
             if (settled) return;
@@ -269,10 +282,10 @@ function runProbe(binary: string, cwd: string, env: NodeJS.ProcessEnv, onLog: (l
             onLog(line);
             if (plain === IDENTITY_GATE_LINE) answered = true;
         };
-        pumpLines(child.stdout!, (c) => { stdout += c; }, emit);
-        pumpLines(child.stderr!, (c) => { stderr += c; }, emit);
+        pumpLines(child.stdout!, (c) => { stdout = (stdout + c).slice(-32 * 1024); }, emit);
+        pumpLines(child.stderr!, (c) => { stderr = (stderr + c).slice(-32 * 1024); }, emit);
         child.on('error', (error) => { if (!settled) { settled = true; clearTimeout(timer); reject(error); } });
-        child.on('close', (code) => settle(answered && code === 0));
+        child.on('close', (code, signal) => settle(answered && code === 0, code, signal));
     });
 }
 

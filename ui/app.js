@@ -412,7 +412,7 @@ function render() {
   const d = state.device;
   const playerWorking =
     state.playerUpdate?.running &&
-    ['prepare', 'review', 'write'].includes(state.playerUpdate.action);
+    ['prepare', 'reuse', 'review', 'write'].includes(state.playerUpdate.action);
   const ejecting = state.busy && state.operation === 'eject' && d.connected;
   $('eject').classList.toggle('ejecting', ejecting);
   $('eject').hidden = ejecting;

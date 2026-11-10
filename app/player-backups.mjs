@@ -36,3 +36,38 @@ export async function validateBackupFolder(folder) {
     'Choose an empty folder or your existing Studio Pocket firmware backup folder. General personal folders cannot be used for player image work.',
   );
 }
+
+// Cheap discovery only; the firmware engine rehashes the image before reusing it.
+export async function savedPlayerBackup(folder) {
+  if (!folder) return null;
+  try {
+    await validateBackupFolder(folder);
+    const unitId = (await fs.readFile(path.join(folder, 'current-unit'), 'utf8')).trim();
+    if (!/^[0-9a-f]{32}$/.test(unitId)) return null;
+    const base = path.join(folder, 'units', unitId, 'upgrade');
+    for (const target of [
+      path.join(folder, 'units', unitId),
+      base,
+      path.join(base, 'read-report.json'),
+      path.join(base, 'system.img'),
+    ]) {
+      const stat = await fs.lstat(target);
+      if (stat.isSymbolicLink()) return null;
+    }
+    const reportStat = await fs.stat(path.join(base, 'read-report.json'));
+    if (reportStat.size > 1024 ** 2) return null;
+    const report = JSON.parse(await fs.readFile(path.join(base, 'read-report.json'), 'utf8'));
+    const image = await fs.stat(path.join(base, 'system.img'));
+    if (
+      report.state !== 'studiopocket' ||
+      !report.layout?.trustedForWrite ||
+      !/^[0-9a-f]{64}$/.test(report.imageSha256) ||
+      !image.isFile() ||
+      image.size !== report.imageSizeBytes
+    )
+      return null;
+    return { unitId, size: image.size };
+  } catch {
+    return null;
+  }
+}

@@ -401,6 +401,7 @@ try {
       running: false,
       token: 'reviewed-update',
       firmwareDir: '/Users/Test/Player Backups',
+      savedBackupId: '1234567890abcdef1234567890abcdef',
       summary: {
         unitId: '1234567890abcdef1234567890abcdef',
         checklist: ['Only this player’s measured system partition is written.'],
@@ -411,6 +412,9 @@ try {
   });
   await page.locator('#manage-player').click();
   assert.equal(await page.locator('#player-write').isDisabled(), true);
+  assert.equal(await page.locator('#player-reuse-backup').isEnabled(), true);
+  await page.locator('#player-reuse-backup').click();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['playerReuseBackup']);
   await page.locator('#player-confirm-write').fill('WRITE');
   assert.equal(await page.locator('#player-write').isDisabled(), false);
   await page.locator('#player-write').click();

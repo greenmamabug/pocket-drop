@@ -1,9 +1,9 @@
 # Player software updates
 
 Pocket Drop's **Settings → Player software** wizard updates an existing Studio
-Pocket installation. It uses the unmodified public GPL firmware engine from
+Pocket installation. It uses the public GPL firmware engine from
 Studio Pocket **v0.7.0**, commit `06f11b08ff4a10c9ab4d38ea4000869090298174`.
-The supported player release is pinned deliberately. Checking for a newer Pocket
+Pocket Drop 4.7.2 adds a bounded startup-probe report and a 90-second cold-start allowance; identity and write checks are retained. The supported player release is pinned deliberately. Checking for a newer Pocket
 Drop app is a separate feature; this wizard does not silently choose a new player
 release or change the base Y2 firmware.
 
@@ -13,7 +13,7 @@ release or change the base Y2 firmware.
    the original Studio Pocket installation, use it to retain that player's original
    restore copy. A fresh folder can save the current Studio Pocket system, but
    cannot reconstruct the stock software it replaced.
-2. Download the update files. Pocket Drop checks fixed release SHA-256 hashes and
+2. Choose **Check update files** to download/verify the update files and start the USB tool without opening a player. Pocket Drop checks fixed release SHA-256 hashes and
    verifies the APK's Android signature against Stuart's committed release
    certificate. The MediaTek agent is downloaded separately from its pinned
    upstream source, checked and cached by the upstream engine. First use needs
@@ -21,7 +21,7 @@ release or change the base Y2 firmware.
 3. Eject both player volumes, power the Y2 off and leave its data cable connected.
    Start **Back up & prepare update**. Press the reset pinhole when the app says it
    is waiting. Reading and preparing may take several minutes. Nothing is written
-   to the player in this stage.
+   to the player in this stage. If a complete read is already saved, choose **Use existing backup** instead: its size/hash and signer compatibility are verified locally, and a new full USB read is skipped. Later player-software changes are not included in an older backup.
 4. Review the prepared player identity and checklist, type **WRITE**, then click
    **Update player**. Press the reset pinhole again when prompted. Do not unplug
    or shut the Mac down. The image is rehashed, the actual connected player must
@@ -71,8 +71,9 @@ and the original per-player backup. The GUI does not perform a stock restore.
   verification and cache reuse. Native tool archives are freshly extracted from
   the hash-checked originals for each device operation.
 - `player-task` / `player-worker` / `player-runner`: isolated process, native tool
-  execution and the unmodified vendor engine. No shell, arbitrary download URL,
+  execution and the vendor firmware engine. No shell, arbitrary download URL,
   unchecked signer or agent override is exposed through IPC.
+- `player-tool-check`: no-device native startup preflight and actual probe-failure details, retaining the upstream pre-write identity gate.
 - `player-updater`: exclusive operation state, durable pending-write marker,
   one-use confirmation token, retry state and close/sleep protection.
 - `player-ipc` / `ui/player-update`: native folder selection and guided UI.
@@ -84,3 +85,5 @@ probe without opening USB ports. Electron checks exercise the real helper proces
 browser tests cover confirmation and progress behavior. No physical Y2 has been
 flashed during these automated tests. Hardware install/retry/unplug behavior
 still needs verification with a disposable test player and its original backup.
+
+A failed capability probe previously discarded non-Studio-Pocket output, so a crashed or slow tool could be reported as missing identity-check support. 4.7.2 preflights in the real helper and retains the tool's stderr. The same exact capability answer and successful exit are required; absence, failure, and timeout all stop the operation. The binary is still the pinned official upstream archive. This change is not a confirmed fix for every Monterey-specific startup/USB failure.

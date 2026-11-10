@@ -5,7 +5,8 @@ import { promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import * as engine from '../vendor/firmware-tools/dist/index.js';
 import { nodePlatform } from '../vendor/firmware-tools/dist/node.js';
-import { validateBackupFolder } from './player-backups.mjs';
+import { validateBackupFolder, savedPlayerBackup } from './player-backups.mjs';
+import { checkPlayerTool, playerPlatform } from './player-tool-check.mjs';
 import { PLAYER_ASSETS, PLAYER_SIGNER, PLAYER_VERSION, downloadAsset } from './player-release.mjs';
 
 const exec = promisify(execFile);
@@ -55,9 +56,10 @@ export async function executePlayerTask(
     download = downloadAsset,
     extract = exec,
     statfs = fs.statfs,
+    checkTool = checkPlayerTool,
   } = {},
 ) {
-  if (!['download', 'prepare', 'review', 'write'].includes(input.action))
+  if (!['download', 'prepare', 'reuse', 'review', 'write'].includes(input.action))
     throw new Error('Unknown player operation.');
   if (!['x64', 'arm64'].includes(input.arch)) throw new Error('Unsupported Mac architecture.');
   const progress = (label, bytes, total) =>
@@ -124,27 +126,20 @@ export async function executePlayerTask(
         ? 'This player release cannot be installed: ' + accepted.refusal + '. Nothing was written.'
         : 'The official player signing certificate did not verify. Nothing was written.',
     );
-  if (input.action === 'download') {
-    if (input.firmwareDir) {
-      emit({ label: 'Checking the download agent', percent: null });
-      await api.ensureDownloadAgent(
-        { ...platform, overrides: async () => ({}) },
-        input.firmwareDir,
-        log,
+  if (input.action !== 'download') {
+    if (!path.isAbsolute(input.firmwareDir)) throw new Error('Choose a backup folder on your Mac.');
+    await fs.mkdir(input.firmwareDir, { recursive: true, mode: 0o700 });
+    const disk = await statfs(input.firmwareDir);
+    const initialSpace = ['prepare', 'reuse'].includes(input.action)
+      ? 6 * 1024 ** 3
+      : 128 * 1024 ** 2;
+    if (Number(disk.bavail) * Number(disk.bsize) < initialSpace)
+      throw new Error(
+        ['prepare', 'reuse'].includes(input.action)
+          ? 'Keep at least 6 GB free on the Mac before reading/preparing player backups.'
+          : 'Free at least 128 MB on the Mac to review the saved update.',
       );
-    }
-    return { version: PLAYER_VERSION };
   }
-  if (!path.isAbsolute(input.firmwareDir)) throw new Error('Choose a backup folder on your Mac.');
-  await fs.mkdir(input.firmwareDir, { recursive: true, mode: 0o700 });
-  const disk = await statfs(input.firmwareDir);
-  const initialSpace = input.action === 'prepare' ? 6 * 1024 ** 3 : 128 * 1024 ** 2;
-  if (Number(disk.bavail) * Number(disk.bsize) < initialSpace)
-    throw new Error(
-      input.action === 'prepare'
-        ? 'Keep at least 6 GB free on the Mac before reading/preparing player backups.'
-        : 'Free at least 128 MB on the Mac to review the saved update.',
-    );
   const tools = await fs.mkdtemp(path.join(cache, 'session-'));
   const previousTools = [process.env.STUDIO_POCKET_E2FS_DIR, process.env.STUDIO_POCKET_MTK_BIN];
   try {
@@ -157,13 +152,30 @@ export async function executePlayerTask(
     await extract('/usr/bin/tar', ['-xzf', files[input.arch], '--no-same-owner', '-C', mtk]);
     process.env.STUDIO_POCKET_E2FS_DIR = e2fs;
     process.env.STUDIO_POCKET_MTK_BIN = path.join(mtk, 'mtk');
-    const p = { ...platform, overrides: async () => ({}) }; // Never allow unchecked DA/signing overrides.
-    if (input.action === 'prepare') {
-      const read = await api.readDeviceSystem(
-        p,
-        { firmwareDir: input.firmwareDir, manifests: api.bundledManifests() },
-        cb,
-      );
+    emit({ label: 'Checking the USB updater — older Macs may need a moment', percent: null });
+    await checkTool(path.join(mtk, 'mtk'), tools, { log });
+    const p = playerPlatform(platform, log);
+    if (input.action === 'download') {
+      if (input.firmwareDir) {
+        emit({ label: 'Checking the download agent', percent: null });
+        await api.ensureDownloadAgent(p, input.firmwareDir, log);
+      }
+      return { version: PLAYER_VERSION, toolIdentityVerified: true };
+    }
+    if (['prepare', 'reuse'].includes(input.action)) {
+      const saved = input.action === 'reuse' ? await savedPlayerBackup(input.firmwareDir) : null;
+      if (input.action === 'reuse' && (!saved || saved.unitId !== input.unitId))
+        throw new Error(
+          'No complete backup for this player was found. Choose its backup folder or make a new backup.',
+        );
+      const read =
+        input.action === 'reuse'
+          ? { state: 'studiopocket', unitId: saved.unitId }
+          : await api.readDeviceSystem(
+              p,
+              { firmwareDir: input.firmwareDir, manifests: api.bundledManifests() },
+              cb,
+            );
       if (read.state !== 'studiopocket')
         throw new Error(
           'This player does not already run Studio Pocket. This wizard updates existing installations only.',

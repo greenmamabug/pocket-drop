@@ -1,3 +1,11 @@
+# 4.7.2 — USB updater startup and existing backups
+
+- Verify the actual USB updater capability inside the isolated helper before reading or preparing a player. Check update files also verifies native tool startup, without opening a device.
+- Allow up to 90 seconds for cold startup on older Intel Macs; preserve the exact capability answer and successful-exit requirements.
+- Surface raw pre-write probe failures and startup exceptions instead of incorrectly telling users to rebuild scripts. Retain Activity and Details logging from 4.7.1.
+- Add Use existing backup: discover a complete player-specific backup and verify/reuse it through the existing firmware engine, skipping a fresh USB read. A missing, partial, linked or changed backup is refused. Actual-player identity, explicit WRITE confirmation and full readback checks remain required.
+- Run the real updater preflight from both source and the packaged Intel app in Mac release CI. No physical Y2 or Monterey host was available to confirm the reported machine-specific USB failure.
+
 # 4.7.1 — player update feedback and retained read errors
 
 - Preserve the USB reader traceback, including the final error cause, when backup/preparation fails; retain the full operation log across launches.

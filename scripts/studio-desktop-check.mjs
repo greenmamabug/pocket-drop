@@ -60,6 +60,7 @@ try {
       path.join(root, 'player-download-test'),
     );
     assert.equal(result.version, '0.7.0');
+    assert.equal(result.toolIdentityVerified, true);
   }
   page.on('pageerror', (e) => errors.push(e.message));
   await page.getByText('Desktop story', { exact: true }).waitFor();

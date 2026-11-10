@@ -663,7 +663,7 @@
         <div class="inline-buttons">
           <button class="button" id="player-choose-backup">Choose backup folder…</button>
           <button class="text-button" id="player-open-backup" hidden>Open backups</button>
-          <button class="button" id="player-get-files">Download update files</button>
+          <button class="button" id="player-get-files">Check update files</button>
         </div>
         <p class="hint">
           Downloads the official player and Mac tools on first use, then checks their hashes and the
@@ -684,8 +684,14 @@
         <div class="inline-buttons">
           <button class="button" id="player-eject">Eject Pocket</button>
           <button class="button primary" id="player-read">Back up &amp; prepare update</button>
+          <button class="button" id="player-reuse-backup" disabled>Use existing backup</button>
           <button class="button" id="player-review" hidden>Review saved update</button>
         </div>
+        <p id="player-reuse-note" class="hint"></p>
+        <p class="hint">
+          Using a saved backup prepares the update on your Mac. Later player-software changes will
+          not be included. Pocket Drop still checks the player’s identity before writing.
+        </p>
       </section>
       <section class="player-update-progress" id="player-progress-section" hidden>
         <p id="player-update-status" role="status" aria-live="polite"></p>

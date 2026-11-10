@@ -272,6 +272,7 @@ test('isolated task refuses changed plans and missing confirmation, and requires
         return path.join(folder, asset.name);
       },
       extract: async () => {},
+      checkTool: async () => ({ passed: true }),
       statfs: async () => ({ bavail: 100, bsize: 1024 ** 3 }),
     };
     await assert.rejects(
@@ -343,6 +344,7 @@ test('failed USB reads preserve the traceback cause and connection steps without
         return path.join(folder, asset.name);
       },
       extract: async () => {},
+      checkTool: async () => ({ passed: true }),
       statfs: async () => ({ bavail: 100, bsize: 1024 ** 3 }),
     };
     await assert.rejects(
@@ -397,4 +399,128 @@ test('player failures persist in Activity and Details, clear the busy state and 
     await updater.prepare();
     assert.equal(updater.state.phase, 'prepared');
     assert.equal(updater.state.error, null);
+  }));
+
+test('reusing a backup skips device reads, verifies/prepares locally and still requires a reviewed write plan', () =>
+  temporary(async (root) => {
+    const unitId = summary.unitId;
+    const base = path.join(root, 'units', unitId, 'upgrade');
+    await fs.mkdir(base, { recursive: true });
+    await fs.writeFile(path.join(root, 'current-unit'), unitId);
+    await fs.writeFile(
+      path.join(root, '.pocket-drop-backups.json'),
+      '{"format":"pocket-drop-player-backups","version":1}\n',
+    );
+    await fs.writeFile(path.join(base, 'system.img'), 'read');
+    await fs.writeFile(
+      path.join(base, 'read-report.json'),
+      JSON.stringify({
+        state: 'studiopocket',
+        imageSha256: 'c'.repeat(64),
+        imageSizeBytes: 4,
+        layout: { trustedForWrite: true },
+      }),
+    );
+    let prepared = 0,
+      checks = 0;
+    const api = {
+      inspectApkFile: async () => ({}),
+      acceptApk: () => ({ ok: true, signerSha256: PLAYER_SIGNER }),
+      readDeviceSystem: async () => {
+        throw new Error('must not reread device');
+      },
+      prepareUpgradeFromDevice: async (_p, input) => {
+        prepared++;
+        assert.equal(input.unitId, unitId);
+      },
+      loadUpgradePrepareReport: async () => ({
+        verification: { ok: true },
+        apk: { sha256: PLAYER_ASSETS.apk.sha256, signerSha256: PLAYER_SIGNER },
+      }),
+      planWrite: async (_p, options) => {
+        assert.equal(options.unitId, unitId);
+        assert.equal(options.verify, 'full');
+        return { ...summary, expectCid: unitId };
+      },
+    };
+    const deps = {
+      api,
+      platform: {},
+      extract: async () => {},
+      checkTool: async () => {
+        checks++;
+      },
+      statfs: async () => ({ bavail: 100, bsize: 1024 ** 3 }),
+      download: async (folder, asset) => {
+        await fs.mkdir(folder, { recursive: true });
+        return path.join(folder, asset.name);
+      },
+    };
+    const result = await executePlayerTask(
+      { action: 'reuse', arch: 'x64', firmwareDir: root, unitId, cache: path.join(root, 'cache') },
+      () => {},
+      deps,
+    );
+    assert.equal(result.unitId, unitId);
+    assert.equal(prepared, 1);
+    assert.equal(checks, 1);
+    await assert.rejects(
+      executePlayerTask(
+        {
+          action: 'reuse',
+          arch: 'x64',
+          firmwareDir: root,
+          unitId: 'f'.repeat(32),
+          cache: path.join(root, 'cache'),
+        },
+        () => {},
+        deps,
+      ),
+      /No complete backup/,
+    );
+    assert.equal(prepared, 1);
+    await fs.mkdir(path.join(root, 'app'));
+    const { updater, library, calls } = await fixture(path.join(root, 'app'));
+    await updater.chooseFolder(root);
+    assert.equal(updater.state.savedBackupId, unitId);
+    library.device.connectionStatus = async () => {
+      throw new Error('local reuse must not inspect mounted player');
+    };
+    await updater.prepare(true);
+    assert.equal(calls.at(-1).action, 'reuse');
+    assert.equal(calls.at(-1).unitId, unitId);
+    assert.equal(updater.state.phase, 'prepared');
+    assert.throws(() => updater.write('', updater.state.token), /type WRITE/);
+  }));
+
+test('a failed USB startup preflight stops before any player read or write', () =>
+  temporary(async (root) => {
+    let called = false;
+    await assert.rejects(
+      executePlayerTask(
+        { action: 'prepare', arch: 'x64', cache: path.join(root, 'cache'), firmwareDir: root },
+        () => {},
+        {
+          api: {
+            inspectApkFile: async () => ({}),
+            acceptApk: () => ({ ok: true, signerSha256: PLAYER_SIGNER }),
+            readDeviceSystem: async () => {
+              called = true;
+            },
+          },
+          platform: {},
+          download: async (folder, asset) => {
+            await fs.mkdir(folder, { recursive: true });
+            return path.join(folder, asset.name);
+          },
+          extract: async () => {},
+          statfs: async () => ({ bavail: 100, bsize: 1024 ** 3 }),
+          checkTool: async () => {
+            throw new Error('The USB updater stopped during its startup check.');
+          },
+        },
+      ),
+      /startup check/,
+    );
+    assert.equal(called, false);
   }));

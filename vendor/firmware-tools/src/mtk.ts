@@ -127,7 +127,8 @@ export function identityGate(expect: string): (line: string) => IdentityVerdict 
 export const IDENTITY_GATE_LINE = 'Studio Pocket - identity gate 1';
 
 /** How long the capability probe may take before the tool is killed and refused. */
-export const PROBE_TIMEOUT_MS = 30_000;
+// Pocket Drop: allow older Intel Macs to finish a signed Python bundle's cold start.
+export const PROBE_TIMEOUT_MS = 90_000;
 
 /** The runner's last line when the tool failed the capability probe: no plan was handed over. */
 export const UNCHECKED_TOOL_LINE = 'the mtkclient in use has no player identity check; nothing was written. Rebuild the bundle (scripts/build-mtkclient.sh) or re-run scripts/setup-mtkclient-venv.sh';

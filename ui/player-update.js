@@ -15,6 +15,7 @@ export function installPlayerUpdateUI({ api, guarded, getState }) {
   $('player-official-release').onclick = guarded(() => request('playerRelease'));
   $('player-get-files').onclick = guarded(() => request('playerDownload'));
   $('player-read').onclick = guarded(() => request('playerPrepare'));
+  $('player-reuse-backup').onclick = guarded(() => request('playerReuseBackup'));
   $('player-review').onclick = guarded(() => request('playerReview'));
   $('player-eject').onclick = guarded(() => request('eject'));
   $('player-cancel').onclick = guarded(() => request('playerCancel'));
@@ -60,10 +61,12 @@ export function installPlayerUpdateUI({ api, guarded, getState }) {
     $('player-choose-backup').disabled = busy || p.pendingWrite;
     $('player-open-backup').hidden = !p.firmwareDir;
     $('player-get-files').disabled = busy || !p.firmwareDir;
-    $('player-get-files').textContent = p.filesReady
-      ? 'Check update files'
-      : 'Download update files';
+    $('player-get-files').textContent = 'Check update files';
     $('player-read').disabled = busy || !p.firmwareDir || p.pendingWrite;
+    $('player-reuse-backup').disabled = busy || !p.savedBackupId || p.pendingWrite;
+    $('player-reuse-note').textContent = p.savedBackupId
+      ? `Saved backup: player …${p.savedBackupId.slice(-8)}. Verified on your Mac before use; the full player read is skipped.`
+      : 'Choose the folder containing a complete Pocket Drop player backup to use it again.';
     $('player-backup-step').hidden = p.running && p.action === 'write';
     $('player-prepare-step').hidden = p.running && p.action === 'write';
     $('player-eject').disabled = busy || !state.device.connected;

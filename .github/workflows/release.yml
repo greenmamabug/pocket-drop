@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing version tag to build
         required: true
-        default: v4.7.1
+        default: v4.7.2
   push:
     tags: ['v*']
 
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.7.1' }}
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.7.2' }}
 
 jobs:
   test:
@@ -99,6 +99,12 @@ jobs:
           POCKET_PLAYER_TOOL_CHECK: '1'
       - name: Package application
         run: npm exec -- electron-builder --mac dir --"$BUILD_ARCH" --config.electronDist=node_modules/electron/dist --publish never
+      - name: Verify updater inside the packaged Intel app without a device
+        if: matrix.arch == 'x64'
+        run: node scripts/studio-desktop-check.mjs
+        env:
+          POCKET_PLAYER_TOOL_CHECK: '1'
+          POCKET_DROP_PACKAGED_MAIN: ${{ github.workspace }}/release/mac/Pocket Drop.app/Contents/Resources/app.asar/app/main.mjs
       - name: Apply ad-hoc integrity signatures
         run: |
           python3 - <<'PY'

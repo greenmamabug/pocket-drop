@@ -44,6 +44,11 @@ export async function installPlayerUpdates({
       throw new Error('Close audio details before updating player software.');
     return updater.prepare();
   });
+  handle('playerReuseBackup', () => {
+    if (workspace.editor.sessions.size || workspace.openingDetails)
+      throw new Error('Close audio details before updating player software.');
+    return updater.prepare(true);
+  });
   handle('playerReview', () => updater.review());
   handle('playerWrite', (confirmation, token) => updater.write(confirmation, token));
   handle('playerCancel', () => updater.cancel());

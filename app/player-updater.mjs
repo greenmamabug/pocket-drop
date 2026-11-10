@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { writeJson } from './atomic-json.mjs';
 import { PlayerRunner } from './player-runner.mjs';
 import { PLAYER_VERSION } from './player-release.mjs';
-import { validateBackupFolder } from './player-backups.mjs';
+import { validateBackupFolder, savedPlayerBackup } from './player-backups.mjs';
 
 export class PlayerUpdater {
   constructor({
@@ -81,7 +81,8 @@ export class PlayerUpdater {
     } catch (error) {
       if (error.code !== 'ENOENT') this.publish({ error: error.message });
     }
-    this.publish();
+    const backup = await savedPlayerBackup(this.state.firmwareDir);
+    this.publish({ savedBackupId: backup?.unitId ?? null });
     return this;
   }
   assertIdle() {
@@ -129,6 +130,7 @@ export class PlayerUpdater {
             await fs.stat(path.join(real, 'units', unit, 'upgrade', 'out', 'build-report.json'))
           ).isFile();
       } catch {}
+      const backup = await savedPlayerBackup(real);
       this.publish({
         firmwareDir: real,
         phase: 'idle',
@@ -138,6 +140,7 @@ export class PlayerUpdater {
         error: null,
         pendingWrite: false,
         hasSavedUpdate,
+        savedBackupId: backup?.unitId ?? null,
       });
     });
   }
@@ -184,7 +187,12 @@ export class PlayerUpdater {
       }
       this.library.busy = false;
       this.library.operation = null;
-      this.publish({ running: false, connectionPhase: null });
+      const backup = await savedPlayerBackup(this.state.firmwareDir);
+      this.publish({
+        running: false,
+        connectionPhase: null,
+        savedBackupId: backup?.unitId ?? null,
+      });
       await writeJson(path.join(this.folder, 'player-update-details.json'), {
         lines: [...this.state.details, ...(this.state.error ? [this.state.error] : [])].slice(-150),
       }).catch((error) => this.record('player-details-save', error));
@@ -238,19 +246,25 @@ export class PlayerUpdater {
       });
     });
   }
-  prepare() {
-    return this.run('prepare', async () => {
+  prepare(reuse = false) {
+    return this.run(reuse ? 'reuse' : 'prepare', async () => {
       if (!this.state.firmwareDir) throw new Error('Choose a backup folder first.');
       if (this.journal?.pendingWrite)
         throw new Error('Retry the pending update before reading another player.');
-      if ((await this.library.device.connectionStatus()).connected)
+      const backup = reuse ? await savedPlayerBackup(this.state.firmwareDir) : null;
+      if (reuse && !backup)
+        throw new Error('Choose a folder with a complete backup first, or make a new backup.');
+      if (!reuse && (await this.library.device.connectionStatus()).connected)
         throw new Error('Eject Pocket first, then power it off with the data cable connected.');
       this.token = null;
       // An old prepared selection must not remain armed if this read/prepare fails.
       await fs.rm(this.file, { force: true });
       this.journal = null;
       this.publish({ phase: 'preparing', token: null, summary: null });
-      const summary = await this.job('prepare');
+      const summary = await this.job(
+        reuse ? 'reuse' : 'prepare',
+        reuse ? { unitId: backup.unitId } : {},
+      );
       if (summary.current) {
         this.publish({
           phase: 'current',
