@@ -3,11 +3,18 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const plist = require('plist');
-module.exports = async context => {
+module.exports = async (context) => {
   if (context.electronPlatformName !== 'darwin') return;
-  const contents = path.join(context.appOutDir, context.packager.appInfo.productFilename + '.app', 'Contents');
-  const iconName='PocketDrop-'+context.packager.appInfo.version+'.icns';
-  await fs.rename(path.join(contents, 'Resources', 'icon.icns'), path.join(contents, 'Resources', iconName));
+  const contents = path.join(
+    context.appOutDir,
+    context.packager.appInfo.productFilename + '.app',
+    'Contents',
+  );
+  const iconName = 'PocketDrop-' + context.packager.appInfo.version + '.icns';
+  await fs.rename(
+    path.join(contents, 'Resources', 'icon.icns'),
+    path.join(contents, 'Resources', iconName),
+  );
   const file = path.join(contents, 'Info.plist');
   const info = plist.parse(await fs.readFile(file, 'utf8'));
   info.CFBundleIconFile = iconName;

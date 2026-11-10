@@ -1,10 +1,103 @@
-import test from 'node:test';import assert from 'node:assert/strict';import plist from 'plist';import {ejectPocket} from '../app/eject.mjs';
-function mock({same=false,unrelated=false,busy=false,external=true,lie=false}={}){const mounted=new Map();const base={Internal:false,BusProtocol:'USB'};mounted.set('/Volumes/Y2 MAIN',{...base,VolumeName:'Y2 MAIN',MountPoint:'/Volumes/Y2 MAIN',ParentWholeDisk:'disk4',DeviceIdentifier:'disk4s1',DeviceTreePath:'IOService:/USB/player/IOSCSILogicalUnitNub@0/disk4'});if(external)mounted.set('/Volumes/Y2 EXTERNAL',{...base,VolumeName:'Y2 EXTERNAL',MountPoint:'/Volumes/Y2 EXTERNAL',ParentWholeDisk:same?'disk4':'disk5',DeviceIdentifier:same?'disk4s2':'disk5s1',DeviceTreePath:`IOService:/USB/${unrelated?'other':'player'}/IOSCSILogicalUnitNub@1/disk5`});const ejected=[];return{ejected,command:async(_bin,args)=>{if(args[0]==='info'){const d=mounted.get(args[2]);if(!d)throw new Error('not mounted');return{stdout:plist.build(d)};}ejected.push(args[1]);if(busy)throw new Error('busy');if(!lie)for(const [p,d]of mounted)if(d.ParentWholeDisk===args[1])mounted.delete(p);return{stdout:'ejected'};}};}
-test('ejects both player LUNs, external first, verifies absence',async()=>{const m=mock();assert.equal((await ejectPocket({...m,platform:'darwin'})).volumes.length,2);assert.deepEqual(m.ejected,['disk5','disk4']);});
-test('two partitions of one disk need one whole-disk eject',async()=>{const m=mock({same:true});await ejectPocket({...m,platform:'darwin'});assert.deepEqual(m.ejected,['disk4']);});
-test('onboard-only player can be ejected',async()=>{const m=mock({external:false});assert.equal((await ejectPocket({...m,platform:'darwin'})).volumes.length,1);});
-test('unrelated named USB disk is never ejected',async()=>{const m=mock({unrelated:true});await assert.rejects(ejectPocket({...m,platform:'darwin'}),/same USB player/);assert.deepEqual(m.ejected,[]);});
-test('busy external disk prevents ejecting onboard storage',async()=>{const m=mock({busy:true});await assert.rejects(ejectPocket({...m,platform:'darwin'}),/Do not unplug/);assert.deepEqual(m.ejected,['disk5']);});
-test('command success with mounted volume is not claimed as safe',async()=>{const m=mock({lie:true});await assert.rejects(ejectPocket({...m,platform:'darwin'}),/still mounted/);});
-test('separate USB disks can be explicitly confirmed by the user',async()=>{const m=mock({unrelated:true});let asked=false;const result=await ejectPocket({...m,platform:'darwin',confirmSeparate:async volumes=>{asked=true;assert.deepEqual(volumes.map(v=>v.VolumeName),['Y2 MAIN','Y2 EXTERNAL']);return true;}});assert.ok(asked);assert.equal(result.volumes.length,2);assert.deepEqual(m.ejected,['disk5','disk4']);});
-test('cancelling separate-volume confirmation ejects neither volume',async()=>{const m=mock({unrelated:true});const result=await ejectPocket({...m,platform:'darwin',confirmSeparate:async()=>false});assert.ok(result.cancelled);assert.deepEqual(m.ejected,[]);});
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import plist from 'plist';
+import { ejectPocket } from '../app/eject.mjs';
+function mock({
+  same = false,
+  unrelated = false,
+  busy = false,
+  external = true,
+  lie = false,
+} = {}) {
+  const mounted = new Map();
+  const base = { Internal: false, BusProtocol: 'USB' };
+  mounted.set('/Volumes/Y2 MAIN', {
+    ...base,
+    VolumeName: 'Y2 MAIN',
+    MountPoint: '/Volumes/Y2 MAIN',
+    ParentWholeDisk: 'disk4',
+    DeviceIdentifier: 'disk4s1',
+    DeviceTreePath: 'IOService:/USB/player/IOSCSILogicalUnitNub@0/disk4',
+  });
+  if (external)
+    mounted.set('/Volumes/Y2 EXTERNAL', {
+      ...base,
+      VolumeName: 'Y2 EXTERNAL',
+      MountPoint: '/Volumes/Y2 EXTERNAL',
+      ParentWholeDisk: same ? 'disk4' : 'disk5',
+      DeviceIdentifier: same ? 'disk4s2' : 'disk5s1',
+      DeviceTreePath: `IOService:/USB/${unrelated ? 'other' : 'player'}/IOSCSILogicalUnitNub@1/disk5`,
+    });
+  const ejected = [];
+  return {
+    ejected,
+    command: async (_bin, args) => {
+      if (args[0] === 'info') {
+        const d = mounted.get(args[2]);
+        if (!d) throw new Error('not mounted');
+        return { stdout: plist.build(d) };
+      }
+      ejected.push(args[1]);
+      if (busy) throw new Error('busy');
+      if (!lie) for (const [p, d] of mounted) if (d.ParentWholeDisk === args[1]) mounted.delete(p);
+      return { stdout: 'ejected' };
+    },
+  };
+}
+test('ejects both player LUNs, external first, verifies absence', async () => {
+  const m = mock();
+  assert.equal((await ejectPocket({ ...m, platform: 'darwin' })).volumes.length, 2);
+  assert.deepEqual(m.ejected, ['disk5', 'disk4']);
+});
+test('two partitions of one disk need one whole-disk eject', async () => {
+  const m = mock({ same: true });
+  await ejectPocket({ ...m, platform: 'darwin' });
+  assert.deepEqual(m.ejected, ['disk4']);
+});
+test('onboard-only player can be ejected', async () => {
+  const m = mock({ external: false });
+  assert.equal((await ejectPocket({ ...m, platform: 'darwin' })).volumes.length, 1);
+});
+test('unrelated named USB disk is never ejected', async () => {
+  const m = mock({ unrelated: true });
+  await assert.rejects(ejectPocket({ ...m, platform: 'darwin' }), /same USB player/);
+  assert.deepEqual(m.ejected, []);
+});
+test('busy external disk prevents ejecting onboard storage', async () => {
+  const m = mock({ busy: true });
+  await assert.rejects(ejectPocket({ ...m, platform: 'darwin' }), /Do not unplug/);
+  assert.deepEqual(m.ejected, ['disk5']);
+});
+test('command success with mounted volume is not claimed as safe', async () => {
+  const m = mock({ lie: true });
+  await assert.rejects(ejectPocket({ ...m, platform: 'darwin' }), /still mounted/);
+});
+test('separate USB disks can be explicitly confirmed by the user', async () => {
+  const m = mock({ unrelated: true });
+  let asked = false;
+  const result = await ejectPocket({
+    ...m,
+    platform: 'darwin',
+    confirmSeparate: async (volumes) => {
+      asked = true;
+      assert.deepEqual(
+        volumes.map((v) => v.VolumeName),
+        ['Y2 MAIN', 'Y2 EXTERNAL'],
+      );
+      return true;
+    },
+  });
+  assert.ok(asked);
+  assert.equal(result.volumes.length, 2);
+  assert.deepEqual(m.ejected, ['disk5', 'disk4']);
+});
+test('cancelling separate-volume confirmation ejects neither volume', async () => {
+  const m = mock({ unrelated: true });
+  const result = await ejectPocket({
+    ...m,
+    platform: 'darwin',
+    confirmSeparate: async () => false,
+  });
+  assert.ok(result.cancelled);
+  assert.deepEqual(m.ejected, []);
+});

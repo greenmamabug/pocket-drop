@@ -1,6 +1,6 @@
 {
   "name": "pocket-drop",
-  "version": "4.4.6",
+  "version": "4.5.0",
   "description": "Audio library, track editing, collections and USB sync for Studio Pocket",
   "author": "Lindsey Schultz and Pocket Drop contributors",
   "license": "GPL-3.0-only",
@@ -18,7 +18,13 @@
     "dist:linux": "npm run build && electron-builder --linux dir --x64",
     "dist:mac:intel": "npm run build && electron-builder --mac zip --x64 --publish never",
     "dist:mac:apple-silicon": "python3 scripts/package-apple-silicon.py",
-    "pack:mac:apple-silicon": "npm run build && electron-builder --mac dir --arm64 --publish never"
+    "pack:mac:apple-silicon": "npm run build && electron-builder --mac dir --arm64 --publish never",
+    "format": "prettier --write app ui test scripts/*.mjs scripts/*.cjs package.json .prettierrc.json .github/workflows/release.yml eslint.config.mjs",
+    "format:check": "prettier --check app ui test scripts/*.mjs scripts/*.cjs package.json .prettierrc.json .github/workflows/release.yml eslint.config.mjs",
+    "check": "npm run format:check && npm run lint && node scripts/check-syntax.mjs",
+    "test:ui": "node scripts/ui-check.mjs && node scripts/studio-ui-check.mjs",
+    "test:desktop": "node scripts/desktop-check.mjs && node scripts/studio-desktop-check.mjs",
+    "lint": "eslint app ui scripts test"
   },
   "dependencies": {
     "@studio-pocket/library-format": "*",
@@ -33,7 +39,10 @@
     "@types/node": "22.19.0",
     "electron": "38.8.6",
     "electron-builder": "26.8.1",
+    "eslint": "10.14.0",
+    "globals": "16.5.0",
     "playwright": "1.58.2",
+    "prettier": "3.9.10",
     "sharp": "0.34.5",
     "typescript": "5.9.3",
     "yazl": "3.3.1"
@@ -41,7 +50,7 @@
   "build": {
     "appId": "app.pocketdrop.desktop",
     "productName": "Pocket Drop",
-    "copyright": "Pocket Drop by Lindsey Schultz; Studio Pocket \u00a9 Ashworth Digital Ltd",
+    "copyright": "Pocket Drop by Lindsey Schultz; Studio Pocket © Ashworth Digital Ltd",
     "directories": {
       "output": "release"
     },

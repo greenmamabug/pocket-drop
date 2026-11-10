@@ -1,32 +1,246 @@
 import sharp from 'sharp';
 import yazl from 'yazl';
-import {createWriteStream} from 'node:fs';
-import {_electron as electron} from 'playwright';
+import { createWriteStream } from 'node:fs';
+import { _electron as electron } from 'playwright';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import assert from 'node:assert/strict';
-const root=await fs.mkdtemp(path.join(os.tmpdir(),'pocket-desktop-'));
-const inbox=path.join(root,'Downloads','Pocket Drop Inbox');await fs.mkdir(inbox,{recursive:true});
-const book=path.join(inbox,'Real fixture');await fs.mkdir(path.join(book,'audio'),{recursive:true});await fs.copyFile('vendor/library-format/fixtures/audio/tone-c5.mp3',path.join(book,'audio','00.mp3'));await sharp({create:{width:540,height:856,channels:3,background:'#667799'}}).png().toFile(path.join(book,'cover.jpg'));await fs.writeFile(path.join(book,'metadata.json'),JSON.stringify({format:'myo-studio-archive',title:'A real desktop fixture',cover:'cover.jpg',tracks:[{index:0,title:'A first chapter',audio:'audio/00.mp3'}]}));const old=new Date(Date.now()-10000);await fs.utimes(book,old,old);
-const app=await electron.launch({args:['--no-sandbox','--disable-gpu','scripts/desktop-entry.mjs'],env:{...process.env,DISPLAY:process.env.DISPLAY??':99',POCKET_DROP_TEST_ROOT:root,XDG_CACHE_HOME:path.join(root,'cache'),XDG_CONFIG_HOME:path.join(root,'config')},timeout:30000});
-try{
-  const page=await app.firstWindow();assert.equal((await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].getSize()))[0],1080);const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.getByText('A real desktop fixture',{exact:true}).waitFor();await page.getByText('Pocket disconnected',{exact:true}).waitFor();assert.ok(await page.locator('#rows img').count());const imageSize=await page.locator('#rows img').evaluate(e=>({w:e.naturalWidth,h:e.naturalHeight}));assert.ok(Math.abs(imageSize.w/imageSize.h-540/856)<0.01,'native thumbnail must preserve card artwork proportions');assert.ok(await page.locator('#sync').isDisabled());
-  const moduleRoot=process.env.POCKET_DROP_PACKAGED_MAIN?path.dirname(process.env.POCKET_DROP_PACKAGED_MAIN):path.resolve('app');const caf=path.join(root,'real-opus.caf');const decoded=await app.evaluate(async(_,{input,output})=>globalThis.pocketDecodeOpus(input,output),{input:path.resolve('test/fixtures/tone-mono.opus'),output:caf});assert.equal(decoded.samples,108000);assert.equal((await fs.stat(caf)).size,68+108000*4);
-  await assert.rejects(page.evaluate(()=>window.pocket.invoke('eject')),/macOS/);assert.equal((await page.evaluate(()=>window.pocket.invoke('state'))).busy,false);assert.equal((await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().length)),1);assert.ok((await fs.readFile(path.join(root,'support','diagnostics.log'),'utf8')).includes('eject-error'));
-  await page.locator('#connection-title').click();await page.locator('#pocket-name-input').fill('Lindsey’s Pocket');await page.locator('#pocket-name-form button[type=submit]').click();await page.waitForFunction(()=>document.querySelector('#connection-title').textContent==='Lindsey’s Pocket');assert.equal(JSON.parse(await fs.readFile(path.join(root,'support','settings.json'))).pocketName,'Lindsey’s Pocket');await assert.rejects(page.evaluate(()=>window.pocket.invoke('pocketName','   ')));await assert.rejects(page.evaluate(()=>window.pocket.invoke('pocketName','x'.repeat(41))));
-  const prefs=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences());assert.equal(prefs.sandbox,true);assert.equal(prefs.contextIsolation,true);assert.equal(prefs.nodeIntegration,false);
-  assert.equal(await page.evaluate(()=>typeof window.require),'undefined');
-  await app.evaluate(({shell})=>{shell.openPath=async p=>{globalThis.openedInbox=p;return '';};});await page.locator('#open-inbox').click();assert.equal(await app.evaluate(()=>globalThis.openedInbox),inbox);
-  const source=path.join(root,'Another book');await fs.mkdir(source);await fs.copyFile('vendor/library-format/fixtures/audio/tone-g5.mp3',path.join(source,'01.mp3'));
-  await app.evaluate(({dialog},p)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[p]});},source);await page.evaluate(()=>window.pocket.invoke('add','folder'));assert.ok(await fs.stat(path.join(inbox,'Another book','01.mp3')));assert.ok(await fs.stat(path.join(source,'01.mp3')));
-  const zipSource=path.join(root,'Imported audio.zip');const zip=new yazl.ZipFile();const zipDone=new Promise((resolve,reject)=>{const out=createWriteStream(zipSource);out.on('close',resolve).on('error',reject);zip.outputStream.pipe(out);});zip.addBuffer(Buffer.from('test import'),'README.txt');zip.end();await zipDone;await app.evaluate(({dialog},p)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[p]});},zipSource);await page.locator('#add-files').click();await page.waitForFunction(()=>!document.querySelector('#add-files').disabled);assert.deepEqual(await fs.readFile(path.join(inbox,'Imported audio.zip')),await fs.readFile(zipSource));
-  await assert.rejects(page.evaluate(()=>window.pocket.invoke('importPaths',['/tmp/arbitrary.zip'])),/Use dropped files/);await assert.rejects(page.evaluate(()=>window.pocket.importFiles([new File(['x'],'Fake.zip')])),/Finder/);
-  const dropSource=path.join(root,'Dragged.zip');const dropZip=new yazl.ZipFile();dropZip.addFile('vendor/library-format/fixtures/audio/tone-c5.mp3','audio/01.mp3');dropZip.addBuffer(Buffer.from(JSON.stringify({format:'myo-studio-archive',title:'Dropped song',tracks:[{index:0,title:'A song',audio:'audio/01.mp3'}]})),'metadata.json');const dropDone=new Promise((resolve,reject)=>{const stream=createWriteStream(dropSource);stream.on('close',resolve).on('error',reject);dropZip.outputStream.pipe(stream);});dropZip.end();await dropDone;
-  await page.evaluate(()=>{const input=document.createElement('input');input.type='file';input.id='drop-fixture';input.hidden=true;document.body.appendChild(input);});await page.locator('#drop-fixture').setInputFiles(dropSource);await page.waitForFunction(async()=>{const s=await window.pocket.invoke('state');return !s.busy&&!s.scanning;});await page.evaluate(()=>{const dt=new DataTransfer();dt.items.add(document.querySelector('#drop-fixture').files[0]);document.body.dispatchEvent(new DragEvent('drop',{bubbles:true,dataTransfer:dt}));});await page.getByText('Dropped song',{exact:true}).waitFor();assert.deepEqual(await fs.readFile(path.join(inbox,'Dragged.zip')),await fs.readFile(dropSource));const dropped=(await page.evaluate(()=>window.pocket.invoke('state'))).rows.find(r=>r.title==='Dropped song');assert.notEqual(dropped.status,'downloading');
-  await app.evaluate(({shell})=>{shell.openExternal=async url=>{globalThis.openedWebsite=url;};});await page.evaluate(()=>window.pocket.invoke('myoWebsite'));assert.equal(await app.evaluate(()=>globalThis.openedWebsite),'https://www.myostudio.app');await page.locator('[data-page="settings"]').click();await page.evaluate(()=>window.pocket.invoke('libraryTextSize',22));assert.equal(JSON.parse(await fs.readFile(path.join(root,'support','settings.json'))).libraryTextSize,22);await page.evaluate(()=>window.pocket.invoke('libraryTextSize',18));await page.evaluate(()=>window.pocket.invoke('appTextSize',18));await page.evaluate(()=>window.pocket.invoke('titleColumnWidth',320));const custom=JSON.parse(await fs.readFile(path.join(root,'support','settings.json')));assert.equal(custom.appTextSize,18);assert.equal(custom.titleColumnWidth,320);await assert.rejects(page.evaluate(()=>window.pocket.invoke('appTextSize',99)));await page.evaluate(()=>window.pocket.invoke('appTextSize',14));await page.evaluate(()=>window.pocket.invoke('refreshInterval',60));assert.equal(JSON.parse(await fs.readFile(path.join(root,'support','settings.json'))).refreshSeconds,60);await page.locator('#refresh-interval').selectOption('0');await page.waitForTimeout(100);const saved=JSON.parse(await fs.readFile(path.join(root,'support','settings.json')));assert.equal(saved.autoRefresh,false);
-  const newInbox=path.join(root,'New Inbox');await fs.mkdir(newInbox);await app.evaluate(({dialog},p)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[p]});},newInbox);await page.evaluate(()=>window.pocket.invoke('chooseInbox'));assert.equal(JSON.parse(await fs.readFile(path.join(root,'support','settings.json'))).inbox,newInbox);assert.ok(await fs.stat(book));
-  await page.locator('[data-page="books"]').click();await page.getByText('No audio in Inbox',{exact:true}).waitFor();await page.screenshot({path:'release/Desktop-empty-library.png'});
-  assert.deepEqual(errors,[]);console.log('PASS: actual Electron desktop launch, sandbox/preload IPC, automatic Inbox discovery, metadata import, actual cover rendering, disconnected handling, Open Inbox native API path, folder import keeps source, settings persistence, Inbox relocation preserves original library.');
-}finally{await app.close();await fs.rm(root,{recursive:true,force:true});}
+const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pocket-desktop-'));
+const inbox = path.join(root, 'Downloads', 'Pocket Drop Inbox');
+await fs.mkdir(inbox, { recursive: true });
+const book = path.join(inbox, 'Real fixture');
+await fs.mkdir(path.join(book, 'audio'), { recursive: true });
+await fs.copyFile(
+  'vendor/library-format/fixtures/audio/tone-c5.mp3',
+  path.join(book, 'audio', '00.mp3'),
+);
+await sharp({ create: { width: 540, height: 856, channels: 3, background: '#667799' } })
+  .png()
+  .toFile(path.join(book, 'cover.jpg'));
+await fs.writeFile(
+  path.join(book, 'metadata.json'),
+  JSON.stringify({
+    format: 'myo-studio-archive',
+    title: 'A real desktop fixture',
+    cover: 'cover.jpg',
+    tracks: [{ index: 0, title: 'A first chapter', audio: 'audio/00.mp3' }],
+  }),
+);
+const old = new Date(Date.now() - 10000);
+await fs.utimes(book, old, old);
+const app = await electron.launch({
+  args: ['--no-sandbox', '--disable-gpu', 'scripts/desktop-entry.mjs'],
+  env: {
+    ...process.env,
+    DISPLAY: process.env.DISPLAY ?? ':99',
+    POCKET_DROP_TEST_ROOT: root,
+    XDG_CACHE_HOME: path.join(root, 'cache'),
+    XDG_CONFIG_HOME: path.join(root, 'config'),
+  },
+  timeout: 30000,
+});
+try {
+  const page = await app.firstWindow();
+  assert.equal(
+    (await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getSize()))[0],
+    1080,
+  );
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.getByText('A real desktop fixture', { exact: true }).waitFor();
+  await page.getByText('Pocket disconnected', { exact: true }).waitFor();
+  assert.ok(await page.locator('#rows img').count());
+  const imageSize = await page
+    .locator('#rows img')
+    .evaluate((e) => ({ w: e.naturalWidth, h: e.naturalHeight }));
+  assert.ok(
+    Math.abs(imageSize.w / imageSize.h - 540 / 856) < 0.01,
+    'native thumbnail must preserve card artwork proportions',
+  );
+  assert.ok(await page.locator('#sync').isDisabled());
+  const moduleRoot = process.env.POCKET_DROP_PACKAGED_MAIN
+    ? path.dirname(process.env.POCKET_DROP_PACKAGED_MAIN)
+    : path.resolve('app');
+  const caf = path.join(root, 'real-opus.caf');
+  const decoded = await app.evaluate(
+    async (_, { input, output }) => globalThis.pocketDecodeOpus(input, output),
+    { input: path.resolve('test/fixtures/tone-mono.opus'), output: caf },
+  );
+  assert.equal(decoded.samples, 108000);
+  assert.equal((await fs.stat(caf)).size, 68 + 108000 * 4);
+  await assert.rejects(
+    page.evaluate(() => window.pocket.invoke('eject')),
+    /macOS/,
+  );
+  assert.equal((await page.evaluate(() => window.pocket.invoke('state'))).busy, false);
+  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+  assert.ok(
+    (await fs.readFile(path.join(root, 'support', 'diagnostics.log'), 'utf8')).includes(
+      'eject-error',
+    ),
+  );
+  await page.locator('#connection-title').click();
+  await page.locator('#pocket-name-input').fill('Lindsey’s Pocket');
+  await page.locator('#pocket-name-form button[type=submit]').click();
+  await page.waitForFunction(
+    () => document.querySelector('#connection-title').textContent === 'Lindsey’s Pocket',
+  );
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(root, 'support', 'settings.json'))).pocketName,
+    'Lindsey’s Pocket',
+  );
+  await assert.rejects(page.evaluate(() => window.pocket.invoke('pocketName', '   ')));
+  await assert.rejects(page.evaluate(() => window.pocket.invoke('pocketName', 'x'.repeat(41))));
+  const prefs = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences(),
+  );
+  assert.equal(prefs.sandbox, true);
+  assert.equal(prefs.contextIsolation, true);
+  assert.equal(prefs.nodeIntegration, false);
+  assert.equal(await page.evaluate(() => typeof window.require), 'undefined');
+  await app.evaluate(({ shell }) => {
+    shell.openPath = async (p) => {
+      globalThis.openedInbox = p;
+      return '';
+    };
+  });
+  await page.locator('#open-inbox').click();
+  assert.equal(await app.evaluate(() => globalThis.openedInbox), inbox);
+  const source = path.join(root, 'Another book');
+  await fs.mkdir(source);
+  await fs.copyFile(
+    'vendor/library-format/fixtures/audio/tone-g5.mp3',
+    path.join(source, '01.mp3'),
+  );
+  await app.evaluate(({ dialog }, p) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] });
+  }, source);
+  await page.evaluate(() => window.pocket.invoke('add', 'folder'));
+  assert.ok(await fs.stat(path.join(inbox, 'Another book', '01.mp3')));
+  assert.ok(await fs.stat(path.join(source, '01.mp3')));
+  const zipSource = path.join(root, 'Imported audio.zip');
+  const zip = new yazl.ZipFile();
+  const zipDone = new Promise((resolve, reject) => {
+    const out = createWriteStream(zipSource);
+    out.on('close', resolve).on('error', reject);
+    zip.outputStream.pipe(out);
+  });
+  zip.addBuffer(Buffer.from('test import'), 'README.txt');
+  zip.end();
+  await zipDone;
+  await app.evaluate(({ dialog }, p) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] });
+  }, zipSource);
+  await page.locator('#add-files').click();
+  await page.waitForFunction(() => !document.querySelector('#add-files').disabled);
+  assert.deepEqual(
+    await fs.readFile(path.join(inbox, 'Imported audio.zip')),
+    await fs.readFile(zipSource),
+  );
+  await assert.rejects(
+    page.evaluate(() => window.pocket.invoke('importPaths', ['/tmp/arbitrary.zip'])),
+    /Use dropped files/,
+  );
+  await assert.rejects(
+    page.evaluate(() => window.pocket.importFiles([new File(['x'], 'Fake.zip')])),
+    /Finder/,
+  );
+  const dropSource = path.join(root, 'Dragged.zip');
+  const dropZip = new yazl.ZipFile();
+  dropZip.addFile('vendor/library-format/fixtures/audio/tone-c5.mp3', 'audio/01.mp3');
+  dropZip.addBuffer(
+    Buffer.from(
+      JSON.stringify({
+        format: 'myo-studio-archive',
+        title: 'Dropped song',
+        tracks: [{ index: 0, title: 'A song', audio: 'audio/01.mp3' }],
+      }),
+    ),
+    'metadata.json',
+  );
+  const dropDone = new Promise((resolve, reject) => {
+    const stream = createWriteStream(dropSource);
+    stream.on('close', resolve).on('error', reject);
+    dropZip.outputStream.pipe(stream);
+  });
+  dropZip.end();
+  await dropDone;
+  await page.evaluate(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'drop-fixture';
+    input.hidden = true;
+    document.body.appendChild(input);
+  });
+  await page.locator('#drop-fixture').setInputFiles(dropSource);
+  await page.waitForFunction(async () => {
+    const s = await window.pocket.invoke('state');
+    return !s.busy && !s.scanning;
+  });
+  await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(document.querySelector('#drop-fixture').files[0]);
+    document.body.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt }));
+  });
+  await page.getByText('Dropped song', { exact: true }).waitFor();
+  assert.deepEqual(
+    await fs.readFile(path.join(inbox, 'Dragged.zip')),
+    await fs.readFile(dropSource),
+  );
+  const dropped = (await page.evaluate(() => window.pocket.invoke('state'))).rows.find(
+    (r) => r.title === 'Dropped song',
+  );
+  assert.notEqual(dropped.status, 'downloading');
+  await app.evaluate(({ shell }) => {
+    shell.openExternal = async (url) => {
+      globalThis.openedWebsite = url;
+    };
+  });
+  await page.evaluate(() => window.pocket.invoke('myoWebsite'));
+  assert.equal(await app.evaluate(() => globalThis.openedWebsite), 'https://www.myostudio.app');
+  await page.locator('[data-page="settings"]').click();
+  await page.evaluate(() => window.pocket.invoke('libraryTextSize', 22));
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(root, 'support', 'settings.json'))).libraryTextSize,
+    22,
+  );
+  await page.evaluate(() => window.pocket.invoke('libraryTextSize', 18));
+  await page.evaluate(() => window.pocket.invoke('appTextSize', 18));
+  await page.evaluate(() => window.pocket.invoke('titleColumnWidth', 320));
+  const custom = JSON.parse(await fs.readFile(path.join(root, 'support', 'settings.json')));
+  assert.equal(custom.appTextSize, 18);
+  assert.equal(custom.titleColumnWidth, 320);
+  await assert.rejects(page.evaluate(() => window.pocket.invoke('appTextSize', 99)));
+  await page.evaluate(() => window.pocket.invoke('appTextSize', 14));
+  await page.evaluate(() => window.pocket.invoke('refreshInterval', 60));
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(root, 'support', 'settings.json'))).refreshSeconds,
+    60,
+  );
+  await page.locator('#refresh-interval').selectOption('0');
+  await page.waitForTimeout(100);
+  const saved = JSON.parse(await fs.readFile(path.join(root, 'support', 'settings.json')));
+  assert.equal(saved.autoRefresh, false);
+  const newInbox = path.join(root, 'New Inbox');
+  await fs.mkdir(newInbox);
+  await app.evaluate(({ dialog }, p) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] });
+  }, newInbox);
+  await page.evaluate(() => window.pocket.invoke('chooseInbox'));
+  assert.equal(
+    JSON.parse(await fs.readFile(path.join(root, 'support', 'settings.json'))).inbox,
+    newInbox,
+  );
+  assert.ok(await fs.stat(book));
+  await page.locator('[data-page="books"]').click();
+  await page.getByText('No audio in Inbox', { exact: true }).waitFor();
+  await page.screenshot({ path: 'release/Desktop-empty-library.png' });
+  assert.deepEqual(errors, []);
+  console.log(
+    'PASS: actual Electron desktop launch, sandbox/preload IPC, automatic Inbox discovery, metadata import, actual cover rendering, disconnected handling, Open Inbox native API path, folder import keeps source, settings persistence, Inbox relocation preserves original library.',
+  );
+} finally {
+  await app.close();
+  await fs.rm(root, { recursive: true, force: true });
+}

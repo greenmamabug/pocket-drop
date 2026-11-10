@@ -1,25 +1,353 @@
-import {chromium} from 'playwright';
+import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
-const server=http.createServer(async(req,res)=>{try{const file=path.resolve('.'+decodeURIComponent(req.url));if(!file.startsWith(process.cwd()+path.sep))throw new Error();res.setHeader('Content-Type',/\.m?js$/.test(file)?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':'text/html');res.end(await fs.readFile(file));}catch{res.writeHead(404);res.end();}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
-try{
- const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- const state={version:'4.4.0',inbox:'/Inbox',settings:{},device:{connected:true,initialized:true,deviceId:'test',free:1e9,total:2e9},logs:[],rows:[{key:'one',durationMs:29700000,needsConversion:true,opusCount:1,id:'a-story',title:'A story',source:'Original.zip',local:true,onDevice:false,status:'ready',tracks:2,size:123456,searchTracks:['An opening','An ending']},{key:'two',durationMs:2700000,id:'second',title:'Another story',source:'Another.zip',local:true,onDevice:false,status:'ready',tracks:2,size:123456}],collections:[]};
- await page.addInitScript(state=>{window.state=state;window.calls=[];window.doc={id:'session',rowKey:'one',title:'A story',tags:[],cover:null,coverRef:null,coverMode:'fit',coverPosition:50,icons:[{key:'icons/one.png',name:'First icon',url:''},{key:'icons/two.png',name:'Second icon',url:''}],tracks:[{key:'audio/01.mp3',size:123456,durationMs:125000,title:'An opening',filename:'01.mp3',iconKey:'icons/one.png',url:'pocket-media://preview/one'},{key:'audio/02.mp3',size:234567,durationMs:186000,title:'An ending',filename:'02.mp3',iconKey:'icons/two.png',url:'pocket-media://preview/two'}],canTrashOriginals:true};window.doc.defaults={title:'A story',tracks:structuredClone(window.doc.tracks),cover:null};window.pocket={subscribe:fn=>window.sendState=fn,invoke:async(method,...args)=>{window.calls.push([method,...args]);if(method==='state')return window.state;if(method==='openEditor')return structuredClone(window.doc);if(method==='editorMetrics')return{running:false,tracks:window.doc.tracks.map(({key,size,durationMs})=>({key,size,durationMs}))};if(method==='saveEditor'){window.saved=args[1];return{saved:true};}if(method==='saveCollections'){window.state.collections=args[0];window.sendState(window.state);return args[0];}if(method==='checkUpdates')return{status:'available',current:'4.4.0',version:'4.5.0',notes:'New changes',url:'https://github.com/test/releases/intel.zip'};if(method==='compareDuplicates')return{items:args[0].map(key=>({key,source:key+'.zip',tracks:2,comparison:'Identical audio in the same order'}))};if(method==='preferImport'){window.state.rows.find(r=>r.key==='duplicate').hidden=true;window.sendState(window.state);}if(method==='restoreHidden'){window.state.rows.find(r=>r.key==='duplicate').hidden=false;window.sendState(window.state);}return{};}};},state);
- await page.goto('http://127.0.0.1:'+server.address().port+'/ui/index.html');await page.locator('.audio-open').first().waitFor();
- await page.locator('[data-edit=one]').click();await page.locator('#audio-editor').waitFor({state:'visible'});assert.equal(await page.locator('[data-track-metrics]').first().innerText(),'2m 5s · 123 KB');await page.locator('[data-track-grip=\"audio/02.mp3\"]').dragTo(page.locator('[data-track-row=\"audio/01.mp3\"]'));assert.equal(await page.locator('[data-track-title]').first().inputValue(),'An ending');await page.locator('[data-track-grip=\"audio/01.mp3\"]').dragTo(page.locator('[data-track-row=\"audio/02.mp3\"]'));assert.equal(await page.locator('[data-track-title]').first().inputValue(),'An opening');await page.locator('#editor-title').fill('My renamed story');assert.equal(await page.locator('#editor-tags').count(),0);await page.locator('[data-track-up="audio/02.mp3"]').click();assert.equal(await page.locator('[data-track-title]').first().inputValue(),'An ending');await page.locator('[data-track-title="audio/02.mp3"]').fill('My opening');await page.locator('[data-track-icon="audio/02.mp3"]').selectOption('icons/one.png');await page.locator('[data-track-delete="audio/01.mp3"]').click();assert.equal(await page.locator('[data-track-delete="audio/01.mp3"]').innerText(),'Restore');await page.locator('#editor-save-only').click();
- const saved=await page.evaluate(()=>window.saved);assert.equal(saved.title,'My renamed story');assert.deepEqual(saved.tags,[]);assert.equal(saved.tracks[0].key,'audio/02.mp3');assert.equal(saved.tracks[0].iconKey,'icons/one.png');assert.equal(saved.tracks[1].excluded,true);assert.ok(await page.locator('#audio-editor').isVisible());assert.equal(await page.locator('#editor-save-only').innerText(),'Save');assert.equal(await page.locator('#editor-save').innerText(),'Save and close');assert.ok(!(await page.evaluate(()=>window.calls)).some(c=>c[0]==='prepareAudio'));await page.screenshot({path:'release/Track-editor-440.png'});await page.locator('#editor-title').fill('Saved and closed');await page.locator('#editor-save').click();await page.locator('#audio-editor').waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>window.saved.title),'Saved and closed');
- assert.equal(await page.locator('#rows .length').first().innerText(),'8h 15m');await page.locator('[data-sort=length]').click();assert.equal(await page.locator('#rows .length').first().innerText(),'45m');await page.locator('[data-sort=length]').click();assert.equal(await page.locator('#rows .length').first().innerText(),'8h 15m');await page.screenshot({path:'release/Library-length-443.png'});
- await page.evaluate(()=>{window.state.collectionSyncNeeded=true;window.state.rows=window.state.rows.map(r=>({...r,onDevice:true,status:'current'}));window.sendState(window.state);});assert.ok(await page.locator('#sync').isEnabled());assert.equal(await page.locator('#selection-title').innerText(),'Collection changes ready to sync');await page.locator('#sync').click();assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),['sync',[]]);await page.evaluate(()=>{window.state.collectionSyncNeeded=false;window.state.rows=window.state.rows.map(r=>({...r,onDevice:false,status:'ready'}));window.sendState(window.state);});
- await page.locator('#search').fill('An ending');assert.equal(await page.locator('#rows tr').count(),1);await page.locator('#search').fill('');
- await page.locator('[data-page=collections]').click();await page.locator('#new-collection').click();await page.locator('#collection-name').fill('Bedtime');await page.locator('[data-member=a-story]').check();await page.locator('[data-member=second]').check();await page.locator('[data-member-up=second]').click();await page.locator('#collection-save').click();const groups=await page.evaluate(()=>window.state.collections);assert.equal(groups[0].title,'Bedtime');assert.deepEqual(groups[0].playlists,['second','a-story']);await page.screenshot({path:'release/Collections-440.png'});
- await page.locator('[data-page=books]').click();assert.equal(await page.locator('#books #prepare-audio,#collection-filter').count(),0);await page.locator('[data-page=settings]').click();await page.locator('#prepare-audio').click();await page.locator('[data-prepare-item=one]').check();await page.locator('#prepare-start').click();assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),['prepareAudio',['one']]);await page.locator('[data-page=books]').click();
- await page.evaluate(()=>{window.state.preparation={running:true,phase:'Converting Opus to AAC',percent:35,startedAt:Date.now()-20000,elapsedMs:20000,remainingMs:40000,file:'Chapter.opus',fileIndex:2,fileTotal:5};window.sendState(window.state);});assert.ok(await page.locator('#eject').isEnabled());assert.ok(await page.locator('#preparation-status').isVisible());await page.locator('[data-page=activity]').click();assert.ok(await page.locator('#activity').isVisible());await page.locator('[data-page=books]').click();await page.locator('#cancel-preparation').click();assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),['cancelPreparation']);
- await page.evaluate(()=>{window.state.preparation={...window.state.preparation,running:false};window.state.rows.push({...window.state.rows[0],key:'duplicate',source:'Duplicate.zip'});window.state.duplicates={checking:false,groups:[{title:'A story',items:['one','duplicate'].map(key=>({key,source:key+'.zip',tracks:2,comparison:'Identical audio in the same order'}))}]};window.sendState(window.state);});await page.locator('#compare-imports').click();await page.locator('[data-compare-group]').click();await page.locator('[data-prefer=one]').click();assert.equal(await page.locator('#rows tr').count(),2);await page.locator('[data-page=settings]').click();await page.locator('[data-unhide=duplicate]').click();assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),['restoreHidden','duplicate']);await page.locator('#completion-notifications').check();assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),['completionNotifications',true]);await page.locator('#check-updates').click();assert.ok((await page.locator('#update-status').innerText()).includes('4.5.0'));await page.locator('#download-update').click();assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),['downloadUpdate']);
- await page.locator('[data-page=books]').click();await page.evaluate(()=>{window.state.rows.push({key:'bad',title:'Bad audio',local:true,status:'error',problem:{summary:'An audio file is unsupported.',action:'Use MP3 or AAC.',files:['Bad.flac'],details:'<script>unsafe</script>'}});window.sendState(window.state);});await page.locator('[data-error=bad]').click();assert.equal(await page.locator('#problem-files').innerText(),'Bad.flac');assert.equal(await page.locator('#problem-details').textContent(),'<script>unsafe</script>');await page.locator('#problem-close').click();
- await page.evaluate(()=>{const invoke=window.pocket.invoke;window.pocket.invoke=async(method,...args)=>method==='openEditor'?new Promise(resolve=>window.finishOpening=()=>resolve(structuredClone(window.doc))):invoke(method,...args);});await page.locator('[data-edit=one]').click();assert.equal(await page.locator('[data-edit=one]').getAttribute('aria-busy'),'true');await page.evaluate(()=>window.sendState(window.state));assert.ok(await page.locator('[data-edit=one]').evaluate(e=>e.classList.contains('opening')));await page.evaluate(()=>{document.getElementById('toast').hidden=true;});assert.ok(await page.locator('[data-edit=one] .edit-title-icon').isVisible());await page.evaluate(()=>window.finishOpening());await page.locator('#audio-editor').waitFor({state:'visible'});await page.locator('#editor-save').click();await page.locator('#audio-editor').waitFor({state:'hidden'});
- await page.setViewportSize({width:960,height:700});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth),960);assert.deepEqual(errors,[]);console.log('PASS: track editing/icon reassignment/exclusion, saved draft payload, track search, collection membership/order, offline preparation controls, duplicate preference/restore, notifications, update UI, safe error details and 960px layout.');
-}finally{await browser.close();server.close();}
+const server = http.createServer(async (req, res) => {
+  try {
+    const file = path.resolve('.' + decodeURIComponent(req.url));
+    if (!file.startsWith(process.cwd() + path.sep)) throw new Error();
+    res.setHeader(
+      'Content-Type',
+      /\.m?js$/.test(file)
+        ? 'text/javascript'
+        : file.endsWith('.css')
+          ? 'text/css'
+          : file.endsWith('.png')
+            ? 'image/png'
+            : 'text/html',
+    );
+    res.end(await fs.readFile(file));
+  } catch {
+    res.writeHead(404);
+    res.end();
+  }
+});
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+try {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } }),
+    errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const state = {
+    version: '4.4.0',
+    inbox: '/Inbox',
+    settings: {},
+    device: { connected: true, initialized: true, deviceId: 'test', free: 1e9, total: 2e9 },
+    logs: [],
+    rows: [
+      {
+        key: 'one',
+        durationMs: 29700000,
+        needsConversion: true,
+        opusCount: 1,
+        id: 'a-story',
+        title: 'A story',
+        source: 'Original.zip',
+        local: true,
+        onDevice: false,
+        status: 'ready',
+        tracks: 2,
+        size: 123456,
+        searchTracks: ['An opening', 'An ending'],
+      },
+      {
+        key: 'two',
+        durationMs: 2700000,
+        id: 'second',
+        title: 'Another story',
+        source: 'Another.zip',
+        local: true,
+        onDevice: false,
+        status: 'ready',
+        tracks: 2,
+        size: 123456,
+      },
+    ],
+    collections: [],
+  };
+  await page.addInitScript((state) => {
+    window.state = state;
+    window.calls = [];
+    window.doc = {
+      id: 'session',
+      rowKey: 'one',
+      title: 'A story',
+      tags: [],
+      cover: null,
+      coverRef: null,
+      coverMode: 'fit',
+      coverPosition: 50,
+      icons: [
+        { key: 'icons/one.png', name: 'First icon', url: '' },
+        { key: 'icons/two.png', name: 'Second icon', url: '' },
+      ],
+      tracks: [
+        {
+          key: 'audio/01.mp3',
+          size: 123456,
+          durationMs: 125000,
+          title: 'An opening',
+          filename: '01.mp3',
+          iconKey: 'icons/one.png',
+          url: 'pocket-media://preview/one',
+        },
+        {
+          key: 'audio/02.mp3',
+          size: 234567,
+          durationMs: 186000,
+          title: 'An ending',
+          filename: '02.mp3',
+          iconKey: 'icons/two.png',
+          url: 'pocket-media://preview/two',
+        },
+      ],
+      canTrashOriginals: true,
+    };
+    window.doc.defaults = {
+      title: 'A story',
+      tracks: structuredClone(window.doc.tracks),
+      cover: null,
+    };
+    window.pocket = {
+      subscribe: (fn) => (window.sendState = fn),
+      invoke: async (method, ...args) => {
+        window.calls.push([method, ...args]);
+        if (method === 'state') return window.state;
+        if (method === 'openEditor') return structuredClone(window.doc);
+        if (method === 'editorMetrics')
+          return {
+            running: false,
+            tracks: window.doc.tracks.map(({ key, size, durationMs }) => ({
+              key,
+              size,
+              durationMs,
+            })),
+          };
+        if (method === 'saveEditor') {
+          window.saved = args[1];
+          return { saved: true };
+        }
+        if (method === 'saveCollections') {
+          window.state.collections = args[0];
+          window.sendState(window.state);
+          return args[0];
+        }
+        if (method === 'checkUpdates')
+          return {
+            status: 'available',
+            current: '4.4.0',
+            version: '4.5.0',
+            notes: 'New changes',
+            url: 'https://github.com/test/releases/intel.zip',
+          };
+        if (method === 'compareDuplicates')
+          return {
+            items: args[0].map((key) => ({
+              key,
+              source: key + '.zip',
+              tracks: 2,
+              comparison: 'Identical audio in the same order',
+            })),
+          };
+        if (method === 'preferImport') {
+          window.state.rows.find((r) => r.key === 'duplicate').hidden = true;
+          window.sendState(window.state);
+        }
+        if (method === 'restoreHidden') {
+          window.state.rows.find((r) => r.key === 'duplicate').hidden = false;
+          window.sendState(window.state);
+        }
+        return {};
+      },
+    };
+  }, state);
+  await page.goto('http://127.0.0.1:' + server.address().port + '/ui/index.html');
+  await page.locator('.audio-open').first().waitFor();
+  await page.locator('[data-edit=one]').click();
+  await page.locator('#audio-editor').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('[data-track-metrics]').first().innerText(), '2m 5s · 123 KB');
+  await page
+    .locator('[data-track-grip=\"audio/02.mp3\"]')
+    .dragTo(page.locator('[data-track-row=\"audio/01.mp3\"]'));
+  assert.equal(await page.locator('[data-track-title]').first().inputValue(), 'An ending');
+  await page
+    .locator('[data-track-grip=\"audio/01.mp3\"]')
+    .dragTo(page.locator('[data-track-row=\"audio/02.mp3\"]'));
+  assert.equal(await page.locator('[data-track-title]').first().inputValue(), 'An opening');
+  await page.locator('#editor-title').fill('My renamed story');
+  assert.equal(await page.locator('#editor-tags').count(), 0);
+  await page.locator('[data-track-up="audio/02.mp3"]').click();
+  assert.equal(await page.locator('[data-track-title]').first().inputValue(), 'An ending');
+  await page.locator('[data-track-title="audio/02.mp3"]').fill('My opening');
+  await page.locator('[data-track-icon="audio/02.mp3"]').selectOption('icons/one.png');
+  await page.locator('[data-track-delete="audio/01.mp3"]').click();
+  assert.equal(await page.locator('[data-track-delete="audio/01.mp3"]').innerText(), 'Restore');
+  await page.locator('#editor-save-only').click();
+  const saved = await page.evaluate(() => window.saved);
+  assert.equal(saved.title, 'My renamed story');
+  assert.deepEqual(saved.tags, []);
+  assert.equal(saved.tracks[0].key, 'audio/02.mp3');
+  assert.equal(saved.tracks[0].iconKey, 'icons/one.png');
+  assert.equal(saved.tracks[1].excluded, true);
+  assert.ok(await page.locator('#audio-editor').isVisible());
+  assert.equal(await page.locator('#editor-save-only').innerText(), 'Save');
+  assert.equal(await page.locator('#editor-save').innerText(), 'Save and close');
+  assert.ok(!(await page.evaluate(() => window.calls)).some((c) => c[0] === 'prepareAudio'));
+  await page.screenshot({ path: 'release/Track-editor-440.png' });
+  await page.locator('#editor-title').fill('Saved and closed');
+  await page.locator('#editor-save').click();
+  await page.locator('#audio-editor').waitFor({ state: 'hidden' });
+  assert.equal(await page.evaluate(() => window.saved.title), 'Saved and closed');
+  assert.equal(await page.locator('#rows .length').first().innerText(), '8h 15m');
+  await page.locator('[data-sort=length]').click();
+  assert.equal(await page.locator('#rows .length').first().innerText(), '45m');
+  await page.locator('[data-sort=length]').click();
+  assert.equal(await page.locator('#rows .length').first().innerText(), '8h 15m');
+  await page.screenshot({ path: 'release/Library-length-443.png' });
+  await page.evaluate(() => {
+    window.state.collectionSyncNeeded = true;
+    window.state.rows = window.state.rows.map((r) => ({ ...r, onDevice: true, status: 'current' }));
+    window.sendState(window.state);
+  });
+  assert.ok(await page.locator('#sync').isEnabled());
+  assert.equal(
+    await page.locator('#selection-title').innerText(),
+    'Collection changes ready to sync',
+  );
+  await page.locator('#sync').click();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['sync', []]);
+  await page.evaluate(() => {
+    window.state.collectionSyncNeeded = false;
+    window.state.rows = window.state.rows.map((r) => ({ ...r, onDevice: false, status: 'ready' }));
+    window.sendState(window.state);
+  });
+  await page.locator('#search').fill('An ending');
+  assert.equal(await page.locator('#rows tr').count(), 1);
+  await page.locator('#search').fill('');
+  await page.locator('[data-page=collections]').click();
+  await page.locator('#new-collection').click();
+  await page.locator('#collection-name').fill('Bedtime');
+  await page.locator('[data-member=a-story]').check();
+  await page.locator('[data-member=second]').check();
+  await page.locator('[data-member-up=second]').click();
+  await page.locator('#collection-save').click();
+  const groups = await page.evaluate(() => window.state.collections);
+  assert.equal(groups[0].title, 'Bedtime');
+  assert.deepEqual(groups[0].playlists, ['second', 'a-story']);
+  await page.screenshot({ path: 'release/Collections-440.png' });
+  await page.locator('[data-page=books]').click();
+  assert.equal(await page.locator('#books #prepare-audio,#collection-filter').count(), 0);
+  await page.locator('[data-page=settings]').click();
+  await page.locator('#prepare-audio').click();
+  await page.locator('[data-prepare-item=one]').check();
+  await page.locator('#prepare-start').click();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['prepareAudio', ['one']]);
+  await page.locator('[data-page=books]').click();
+  await page.evaluate(() => {
+    window.state.preparation = {
+      running: true,
+      phase: 'Converting Opus to AAC',
+      percent: 35,
+      startedAt: Date.now() - 20000,
+      elapsedMs: 20000,
+      remainingMs: 40000,
+      file: 'Chapter.opus',
+      fileIndex: 2,
+      fileTotal: 5,
+    };
+    window.sendState(window.state);
+  });
+  assert.ok(await page.locator('#eject').isEnabled());
+  assert.ok(await page.locator('#preparation-status').isVisible());
+  await page.locator('[data-page=activity]').click();
+  assert.ok(await page.locator('#activity').isVisible());
+  await page.locator('[data-page=books]').click();
+  await page.locator('#cancel-preparation').click();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['cancelPreparation']);
+  await page.evaluate(() => {
+    window.state.preparation = { ...window.state.preparation, running: false };
+    window.state.rows.push({ ...window.state.rows[0], key: 'duplicate', source: 'Duplicate.zip' });
+    window.state.duplicates = {
+      checking: false,
+      groups: [
+        {
+          title: 'A story',
+          items: ['one', 'duplicate'].map((key) => ({
+            key,
+            source: key + '.zip',
+            tracks: 2,
+            comparison: 'Identical audio in the same order',
+          })),
+        },
+      ],
+    };
+    window.sendState(window.state);
+  });
+  await page.locator('#compare-imports').click();
+  await page.locator('[data-compare-group]').click();
+  await page.locator('[data-prefer=one]').click();
+  assert.equal(await page.locator('#rows tr').count(), 2);
+  await page.locator('[data-page=settings]').click();
+  await page.locator('[data-unhide=duplicate]').click();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['restoreHidden', 'duplicate']);
+  await page.locator('#completion-notifications').check();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), [
+    'completionNotifications',
+    true,
+  ]);
+  await page.locator('#check-updates').click();
+  assert.ok((await page.locator('#update-status').innerText()).includes('4.5.0'));
+  await page.locator('#download-update').click();
+  assert.deepEqual(await page.evaluate(() => window.calls.at(-1)), ['downloadUpdate']);
+  await page.locator('[data-page=books]').click();
+  await page.evaluate(() => {
+    window.state.rows.push({
+      key: 'bad',
+      title: 'Bad audio',
+      local: true,
+      status: 'error',
+      problem: {
+        summary: 'An audio file is unsupported.',
+        action: 'Use MP3 or AAC.',
+        files: ['Bad.flac'],
+        details: '<script>unsafe</script>',
+      },
+    });
+    window.sendState(window.state);
+  });
+  await page.locator('[data-error=bad]').click();
+  assert.equal(await page.locator('#problem-files').innerText(), 'Bad.flac');
+  assert.equal(await page.locator('#problem-details').textContent(), '<script>unsafe</script>');
+  await page.locator('#problem-close').click();
+  await page.evaluate(() => {
+    const invoke = window.pocket.invoke;
+    window.pocket.invoke = async (method, ...args) =>
+      method === 'openEditor'
+        ? new Promise(
+            (resolve) => (window.finishOpening = () => resolve(structuredClone(window.doc))),
+          )
+        : invoke(method, ...args);
+  });
+  await page.locator('[data-edit=one]').click();
+  assert.equal(await page.locator('[data-edit=one]').getAttribute('aria-busy'), 'true');
+  await page.evaluate(() => window.sendState(window.state));
+  assert.ok(await page.locator('[data-edit=one]').evaluate((e) => e.classList.contains('opening')));
+  await page.evaluate(() => {
+    document.getElementById('toast').hidden = true;
+  });
+  assert.ok(await page.locator('[data-edit=one] .edit-title-icon').isVisible());
+  await page.evaluate(() => window.finishOpening());
+  await page.locator('#audio-editor').waitFor({ state: 'visible' });
+  await page.locator('#editor-save').click();
+  await page.locator('#audio-editor').waitFor({ state: 'hidden' });
+  await page.setViewportSize({ width: 960, height: 700 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 960);
+  assert.deepEqual(errors, []);
+  console.log(
+    'PASS: track editing/icon reassignment/exclusion, saved draft payload, track search, collection membership/order, offline preparation controls, duplicate preference/restore, notifications, update UI, safe error details and 960px layout.',
+  );
+} finally {
+  await browser.close();
+  server.close();
+}

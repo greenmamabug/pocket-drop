@@ -1,0 +1,5 @@
+node_modules
+vendor
+release
+assets
+package-lock.json

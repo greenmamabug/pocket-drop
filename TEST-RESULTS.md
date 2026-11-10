@@ -132,3 +132,15 @@ Numbered-layout follow-up: the full suite passed 66 tests, including extracted f
 ## 4.4.6 track metrics and Tags removal
 
 92 application tests pass, including asynchronous per-track metrics with immediate sizes, cache reuse without audio probing, cancellation on editor close, original-key mapping for converted Ogg/M4B, and one-time cleanup before quit. The solid-7z batch test now verifies thumbnail extraction succeeds with space for only selected pictures plus the safety reserve. Browser checks assert Tags is absent and track length/size render correctly while editor changes and both save actions remain functional. The native Electron editor checks verify actual metric population, preview, covers, collections and close behavior. Existing diagnostics, transfer/cancellation/recovery and collection-sync regressions remain.
+
+## 4.5.0 maintenance audit
+
+104 automated tests pass (12 additional hardening regressions). Tests cover atomic
+JSON replacement/order/failure recovery, queued edit rollback isolation, concurrent
+editor requests, shutdown job draining/refusal, callback failures in the actual
+decoder worker, hashing cancellation, strict media ranges and preparation close
+policy. Both browser and real Linux Electron check scripts pass. Formatter,
+undefined-name linting and syntax checks pass; runtime audit reports zero known
+vulnerabilities. The desktop test caught and prompted correction of a missing
+import during this refactor; linting now guards this class of failure. Native Mac
+release and physical hardware verification boundaries remain documented.

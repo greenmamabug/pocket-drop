@@ -1,3 +1,14 @@
+# 4.5.0 — maintenance audit
+
+- Centralize serialized atomic JSON writes for settings, activity, edits and index caches; flush pending writes at shutdown.
+- Serialize catalog mutations so failed edits roll back before later edits take snapshots.
+- Guard overlapping editor requests, drain late metric work at shutdown, and reject new work while closing.
+- Await decoder termination and handle progress callback errors; make source/cache hashing cancellable.
+- Reject unsafe numeric preview ranges before clamping; protect active preparation from close-to-background behavior.
+- Reuse emitted library snapshots instead of rebuilding them for each main-process publication.
+- Separate pure audio metadata calculations from file probing/background indexing and remove duplicated probing.
+- Format first-party source/tests, add automated formatting/syntax checks to release CI, and document architecture and the audit.
+
 # 4.4.6
 
 - Remove Tags controls and tag text from library rows while preserving existing saved/source data.

@@ -1,22 +1,351 @@
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs/promises';import path from 'node:path';import os from 'node:os';import {execFile} from 'node:child_process';import {promisify} from 'node:util';import {convertOpusFile,decodeOpus} from '../app/convert-audio.mjs';import {inspect,prepare,fingerprint} from '../app/archive.mjs';import {Device} from '../app/device.mjs';import {ensureDeviceMarker} from '@studio-pocket/sync-engine/node';import {checkLibrary} from '@studio-pocket/library-format/node';
-const run=promisify(execFile),root=await fs.mkdtemp(path.join(os.tmpdir(),'pocket-opus-test-'));const fixture=path.resolve('test/fixtures');
-const encoder=async(input,output,{signal,channels})=>{await run('/usr/bin/ffmpeg',['-v','error','-i',input,'-c:a','aac','-b:a',channels===1?'96000':'192000',output],{signal});};
-test('streaming worker decodes mono/stereo Ogg Opus into valid CAF with the exact duration',async()=>{for(const [file,channels]of [['tone-mono.opus',1],['tone-stereo.opus',2]]){const target=path.join(root,file+'.caf');const decoded=await decodeOpus(path.join(fixture,file),target);assert.equal(decoded.channels,channels);assert.equal(decoded.sampleRate,48000);assert.equal(decoded.samples,108000);assert.equal(decoded.duration,2.25);const b=await fs.readFile(target);assert.equal(b.toString('ascii',0,4),'caff');assert.equal(b.length,68+108000*channels*4);}});
-test('conversion emits verified AAC, reuses a hashed cache, keeps originals, and rejects corrupt cache',async()=>{const input=path.join(fixture,'tone-mono.opus'),before=await fingerprint(input),cache=path.join(root,'cache');let encodes=0;const encode=async(...args)=>{encodes++;await encoder(...args);};const first=await convertOpusFile(input,path.join(root,'one.m4a'),{cacheDir:cache,encode});assert.ok(first.duration>=2.25&&first.duration<2.55);const pcm=(await run('/usr/bin/ffmpeg',['-v','error','-i',path.join(root,'one.m4a'),'-f','f32le','-acodec','pcm_f32le','pipe:1'],{encoding:'buffer',maxBuffer:2*1024**2})).stdout;let energy=0;for(let i=0;i<pcm.length;i+=4)energy+=pcm.readFloatLE(i)**2;const rms=Math.sqrt(energy/(pcm.length/4));assert.ok(rms>.06&&rms<.11,'AAC signal amplitude must match the real source tone');const second=await convertOpusFile(input,path.join(root,'two.m4a'),{cacheDir:cache,encode});assert.equal(second.cached,true);assert.equal(encodes,1);await assert.rejects(convertOpusFile(input,path.join(root,'one.m4a'),{cacheDir:cache,encode}),/EEXIST/);assert.equal(encodes,1,'a cached-copy error must not trigger expensive re-encoding');assert.deepEqual(await fs.readFile(path.join(root,'one.m4a')),await fs.readFile(path.join(root,'two.m4a')));assert.equal(await fingerprint(input),before);const cached=(await fs.readdir(cache)).find(f=>f.endsWith('.m4a'));await fs.writeFile(path.join(cache,cached),'damaged');await convertOpusFile(input,path.join(root,'three.m4a'),{cacheDir:cache,encode});assert.equal(encodes,2);});
-test('Opus damage, truncation and cancellation fail without an output or encoder invocation',async()=>{const raw=await fs.readFile(path.join(fixture,'tone-mono.opus'));for(const [name,b]of [['truncated',raw.subarray(0,raw.length-20)],['damaged',Buffer.from(raw)]]){if(name==='damaged')b[b.length-1]^=1;const input=path.join(root,name+'.opus'),output=path.join(root,name+'.m4a');await fs.writeFile(input,b);await assert.rejects(convertOpusFile(input,output,{encode:()=>assert.fail('damaged audio was encoded')}),/incomplete|checksum/);assert.equal(await fs.stat(output).catch(()=>null),null);}await assert.rejects(convertOpusFile(path.join(fixture,'tone-mono.opus'),path.join(root,'cancelled.m4a'),{cancelled:()=>true,encode:()=>assert.fail()}),/cancelled/);});
-test('16-file website archive converts in order and syncs AAC with titles/cover intact; source stays untouched',async()=>{const source=path.join(root,'Forest Wolves');await fs.mkdir(path.join(source,'audio'),{recursive:true});await fs.copyFile('vendor/library-format/fixtures/images/cover-blue.jpg',path.join(source,'cover.jpg'));const tracks=[];for(let i=0;i<16;i++){const audio=`audio/${String(i+1).padStart(2,'0')} - A chapter #${i+1}.opus`;await fs.copyFile(path.join(fixture,'tone-mono.opus'),path.join(source,audio));tracks.push({index:i,title:'Chapter '+(i+1),audio});}await fs.writeFile(path.join(source,'metadata.json'),JSON.stringify({format:'myo-studio-archive',title:'Forest Wolves',cover:'cover.jpg',tracks}));const before=await fingerprint(source);assert.equal((await inspect(source)).opusFiles.length,16);const progress=[];const p=await prepare(source,{convertOpus:true,conversionCache:path.join(root,'cache16'),encode:encoder,onConversion:e=>progress.push(e.percent)});try{assert.equal(p.playlist.tracks.length,16);assert.equal(p.playlist.manifest.title,'Forest Wolves');assert.deepEqual(p.playlist.tracks.map(t=>t.entry.title),tracks.map(t=>t.title));assert.ok(p.playlist.tracks.every(t=>t.entry.mimeType==='audio/mp4'&&t.entry.file.endsWith('.m4a')));assert.ok(p.playlist.coverPath);assert.equal(progress.at(-1),1);assert.ok(progress.every((n,i)=>i===0||n>=progress[i-1]));const volume=path.join(root,'device');await fs.mkdir(volume);await ensureDeviceMarker(volume,'Opus test');const device=new Device(volume,async p=>{const s=await fs.lstat(p);return{dev:s.dev,ino:s.ino};});await device.execute({send:[p.playlist]});const check=await checkLibrary(device.root,{verifyHashes:true});assert.ok(check.playlists[0].ok);assert.equal(check.playlists[0].manifest.tracks.length,16);}finally{await p.cleanup();}assert.equal(await fingerprint(source),before);});
-test('Ogg Vorbis and Ogg Opus convert to verified AAC, preserve originals, survive corrupt input and retry a batch',async()=>{
- const {Library}=await import('../app/library.mjs');const inbox=path.join(root,'Ogg Inbox'),book=path.join(inbox,'Mixed Ogg'),volume=path.join(root,'Ogg Player');await fs.mkdir(book,{recursive:true});await fs.mkdir(volume);await ensureDeviceMarker(volume,'Ogg test');await fs.copyFile(path.join(fixture,'tone-vorbis.ogg'),path.join(book,'01 Vorbis.ogg'));await fs.copyFile(path.join(fixture,'tone-mono.opus'),path.join(book,'02 Opus.ogg'));const old=new Date(Date.now()-10000);await fs.utimes(book,old,old);const before=await fingerprint(book);const device=new Device(volume,async p=>{const s=await fs.lstat(p);return{dev:s.dev,ino:s.ino};}),library=new Library({inbox,device,convertOpus:true,conversionCache:path.join(root,'ogg-aac-cache'),conversionOptions:{encode:encoder}});await library.scan();await library.transfer([library.rows[0].key],'sync');assert.equal(library.busy,false);let check=await checkLibrary(device.root,{verifyHashes:true});assert.ok(check.playlists[0].ok);assert.ok(check.playlists[0].manifest.tracks.every(t=>t.mimeType==='audio/mp4'));assert.ok(Math.abs((await device.inspect()).audioDurationMs-4500)<500);assert.equal(await fingerprint(book),before);
- const bad=path.join(inbox,'Broken Ogg');await fs.mkdir(bad);await fs.writeFile(path.join(bad,'01 broken.ogg'),'not an Ogg file');await fs.utimes(bad,old,old);await library.scan(true);await library.scan(true);const keys=library.rows.filter(r=>r.local).map(r=>r.key);await assert.rejects(library.transfer(keys,'sync'),/convert|Ogg/i);assert.equal(library.busy,false);assert.equal(library.lastResult.tone,'error');assert.ok((await checkLibrary(device.root,{verifyHashes:true})).playlists[0].ok);await fs.copyFile(path.join(fixture,'tone-vorbis.ogg'),path.join(bad,'01 broken.ogg'));await library.scan(true);await library.scan(true);await library.transfer(keys,'sync');check=await checkLibrary(device.root,{verifyHashes:true});assert.equal(check.playlists.length,2);assert.ok(check.playlists.every(p=>p.ok));assert.equal(library.lastResult.tone,'success');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { convertOpusFile, decodeOpus } from '../app/convert-audio.mjs';
+import { inspect, prepare, fingerprint } from '../app/archive.mjs';
+import { Device } from '../app/device.mjs';
+import { ensureDeviceMarker } from '@studio-pocket/sync-engine/node';
+import { checkLibrary } from '@studio-pocket/library-format/node';
+const run = promisify(execFile),
+  root = await fs.mkdtemp(path.join(os.tmpdir(), 'pocket-opus-test-'));
+const fixture = path.resolve('test/fixtures');
+const encoder = async (input, output, { signal, channels }) => {
+  await run(
+    '/usr/bin/ffmpeg',
+    [
+      '-v',
+      'error',
+      '-i',
+      input,
+      '-c:a',
+      'aac',
+      '-b:a',
+      channels === 1 ? '96000' : '192000',
+      output,
+    ],
+    { signal },
+  );
+};
+test('streaming worker decodes mono/stereo Ogg Opus into valid CAF with the exact duration', async () => {
+  for (const [file, channels] of [
+    ['tone-mono.opus', 1],
+    ['tone-stereo.opus', 2],
+  ]) {
+    const target = path.join(root, file + '.caf');
+    const decoded = await decodeOpus(path.join(fixture, file), target);
+    assert.equal(decoded.channels, channels);
+    assert.equal(decoded.sampleRate, 48000);
+    assert.equal(decoded.samples, 108000);
+    assert.equal(decoded.duration, 2.25);
+    const b = await fs.readFile(target);
+    assert.equal(b.toString('ascii', 0, 4), 'caff');
+    assert.equal(b.length, 68 + 108000 * channels * 4);
+  }
 });
-test.after(async()=>{await fs.rm(root,{recursive:true,force:true});});
-test('Chrome ZIP and plain-folder Opus imports convert without editing either source',async()=>{
- const chrome=path.join(root,'Chrome Opus');await fs.mkdir(path.join(chrome,'audio'),{recursive:true});await fs.mkdir(path.join(chrome,'data'));await fs.copyFile(path.join(fixture,'tone-stereo.opus'),path.join(chrome,'audio','00 - Chapter.opus'));await fs.writeFile(path.join(chrome,'data','metadata.json'),JSON.stringify({title:'Download information'}));await fs.writeFile(path.join(chrome,'data','simplified-card-data.json'),JSON.stringify({title:'Chrome Opus',chapters:[{key:'00',title:'Original title'}]}));
- const {default:yazl}=await import('yazl'),{createWriteStream}=await import('node:fs'),{pipeline}=await import('node:stream/promises'),{tree}=await import('../app/archive.mjs');const zip=new yazl.ZipFile();for(const file of await tree(chrome))zip.addFile(path.join(chrome,file.name),file.name);zip.end();const zipped=path.join(root,'Chrome Opus.zip');await pipeline(zip.outputStream,createWriteStream(zipped));
- const plain=path.join(root,'Plain Opus');await fs.mkdir(plain);await fs.copyFile(path.join(fixture,'tone-mono.opus'),path.join(plain,'01 - Plain title.opus'));
- for(const source of [zipped,plain]){const before=await fingerprint(source),p=await prepare(source,{convertOpus:true,conversionCache:path.join(root,'cache-formats'),encode:encoder});assert.equal(p.playlist.tracks.length,1);assert.ok(p.playlist.tracks[0].entry.file.endsWith('.m4a'));if(source===zipped)assert.equal(p.playlist.tracks[0].entry.title,'Original title');await p.cleanup();assert.equal(await fingerprint(source),before);}
+test('conversion emits verified AAC, reuses a hashed cache, keeps originals, and rejects corrupt cache', async () => {
+  const input = path.join(fixture, 'tone-mono.opus'),
+    before = await fingerprint(input),
+    cache = path.join(root, 'cache');
+  let encodes = 0;
+  const encode = async (...args) => {
+    encodes++;
+    await encoder(...args);
+  };
+  const first = await convertOpusFile(input, path.join(root, 'one.m4a'), {
+    cacheDir: cache,
+    encode,
+  });
+  assert.ok(first.duration >= 2.25 && first.duration < 2.55);
+  const pcm = (
+    await run(
+      '/usr/bin/ffmpeg',
+      [
+        '-v',
+        'error',
+        '-i',
+        path.join(root, 'one.m4a'),
+        '-f',
+        'f32le',
+        '-acodec',
+        'pcm_f32le',
+        'pipe:1',
+      ],
+      { encoding: 'buffer', maxBuffer: 2 * 1024 ** 2 },
+    )
+  ).stdout;
+  let energy = 0;
+  for (let i = 0; i < pcm.length; i += 4) energy += pcm.readFloatLE(i) ** 2;
+  const rms = Math.sqrt(energy / (pcm.length / 4));
+  assert.ok(rms > 0.06 && rms < 0.11, 'AAC signal amplitude must match the real source tone');
+  const second = await convertOpusFile(input, path.join(root, 'two.m4a'), {
+    cacheDir: cache,
+    encode,
+  });
+  assert.equal(second.cached, true);
+  assert.equal(encodes, 1);
+  await assert.rejects(
+    convertOpusFile(input, path.join(root, 'one.m4a'), { cacheDir: cache, encode }),
+    /EEXIST/,
+  );
+  assert.equal(encodes, 1, 'a cached-copy error must not trigger expensive re-encoding');
+  assert.deepEqual(
+    await fs.readFile(path.join(root, 'one.m4a')),
+    await fs.readFile(path.join(root, 'two.m4a')),
+  );
+  assert.equal(await fingerprint(input), before);
+  const cached = (await fs.readdir(cache)).find((f) => f.endsWith('.m4a'));
+  await fs.writeFile(path.join(cache, cached), 'damaged');
+  await convertOpusFile(input, path.join(root, 'three.m4a'), { cacheDir: cache, encode });
+  assert.equal(encodes, 2);
 });
-test('clearing the AAC cache permits a fresh encoding on resync, even if encoder metadata differs',async()=>{
- const {Library}=await import('../app/library.mjs');const inbox=path.join(root,'Cache reset Inbox'),book=path.join(inbox,'Cache reset');await fs.mkdir(book,{recursive:true});await fs.copyFile(path.join(fixture,'tone-mono.opus'),path.join(book,'01.opus'));const old=new Date(Date.now()-10000);await fs.utimes(book,old,old);const volume=path.join(root,'cache-reset-device');await fs.mkdir(volume);await ensureDeviceMarker(volume,'Cache reset test');const device=new Device(volume,async p=>{const s=await fs.lstat(p);return{dev:s.dev,ino:s.ino};});const cache=path.join(root,'reset-aac-cache');let passes=0;const timings=[];
- const encode=async(input,output,{signal})=>{await run('/usr/bin/ffmpeg',['-v','error','-i',input,'-c:a','aac','-b:a','96000','-metadata','comment=encoding-'+(++passes),output],{signal});};const library=new Library({inbox,device,convertOpus:true,conversionCache:cache,conversionOptions:{encode,onTiming:event=>timings.push(event)}});await library.scan();const key=library.rows[0].key;await library.transfer([key],'sync');const first=library.rows[0].content;await library.transfer([key],'remove');await fs.rm(cache,{recursive:true,force:true});await library.transfer([key],'sync');assert.equal(passes,2);assert.ok(timings.some(e=>e.event==='encode-complete'&&e.stageMs>=0&&e.playlist==='Cache reset'));assert.notEqual(library.rows[0].content,first);assert.ok((await checkLibrary(device.root,{verifyHashes:true})).playlists[0].ok);assert.ok(await fs.stat(path.join(book,'01.opus')));
+test('Opus damage, truncation and cancellation fail without an output or encoder invocation', async () => {
+  const raw = await fs.readFile(path.join(fixture, 'tone-mono.opus'));
+  for (const [name, b] of [
+    ['truncated', raw.subarray(0, raw.length - 20)],
+    ['damaged', Buffer.from(raw)],
+  ]) {
+    if (name === 'damaged') b[b.length - 1] ^= 1;
+    const input = path.join(root, name + '.opus'),
+      output = path.join(root, name + '.m4a');
+    await fs.writeFile(input, b);
+    await assert.rejects(
+      convertOpusFile(input, output, { encode: () => assert.fail('damaged audio was encoded') }),
+      /incomplete|checksum/,
+    );
+    assert.equal(await fs.stat(output).catch(() => null), null);
+  }
+  await assert.rejects(
+    convertOpusFile(path.join(fixture, 'tone-mono.opus'), path.join(root, 'cancelled.m4a'), {
+      cancelled: () => true,
+      encode: () => assert.fail(),
+    }),
+    /cancelled/,
+  );
+});
+test('16-file website archive converts in order and syncs AAC with titles/cover intact; source stays untouched', async () => {
+  const source = path.join(root, 'Forest Wolves');
+  await fs.mkdir(path.join(source, 'audio'), { recursive: true });
+  await fs.copyFile(
+    'vendor/library-format/fixtures/images/cover-blue.jpg',
+    path.join(source, 'cover.jpg'),
+  );
+  const tracks = [];
+  for (let i = 0; i < 16; i++) {
+    const audio = `audio/${String(i + 1).padStart(2, '0')} - A chapter #${i + 1}.opus`;
+    await fs.copyFile(path.join(fixture, 'tone-mono.opus'), path.join(source, audio));
+    tracks.push({ index: i, title: 'Chapter ' + (i + 1), audio });
+  }
+  await fs.writeFile(
+    path.join(source, 'metadata.json'),
+    JSON.stringify({
+      format: 'myo-studio-archive',
+      title: 'Forest Wolves',
+      cover: 'cover.jpg',
+      tracks,
+    }),
+  );
+  const before = await fingerprint(source);
+  assert.equal((await inspect(source)).opusFiles.length, 16);
+  const progress = [];
+  const p = await prepare(source, {
+    convertOpus: true,
+    conversionCache: path.join(root, 'cache16'),
+    encode: encoder,
+    onConversion: (e) => progress.push(e.percent),
+  });
+  try {
+    assert.equal(p.playlist.tracks.length, 16);
+    assert.equal(p.playlist.manifest.title, 'Forest Wolves');
+    assert.deepEqual(
+      p.playlist.tracks.map((t) => t.entry.title),
+      tracks.map((t) => t.title),
+    );
+    assert.ok(
+      p.playlist.tracks.every(
+        (t) => t.entry.mimeType === 'audio/mp4' && t.entry.file.endsWith('.m4a'),
+      ),
+    );
+    assert.ok(p.playlist.coverPath);
+    assert.equal(progress.at(-1), 1);
+    assert.ok(progress.every((n, i) => i === 0 || n >= progress[i - 1]));
+    const volume = path.join(root, 'device');
+    await fs.mkdir(volume);
+    await ensureDeviceMarker(volume, 'Opus test');
+    const device = new Device(volume, async (p) => {
+      const s = await fs.lstat(p);
+      return { dev: s.dev, ino: s.ino };
+    });
+    await device.execute({ send: [p.playlist] });
+    const check = await checkLibrary(device.root, { verifyHashes: true });
+    assert.ok(check.playlists[0].ok);
+    assert.equal(check.playlists[0].manifest.tracks.length, 16);
+  } finally {
+    await p.cleanup();
+  }
+  assert.equal(await fingerprint(source), before);
+});
+test('Ogg Vorbis and Ogg Opus convert to verified AAC, preserve originals, survive corrupt input and retry a batch', async () => {
+  const { Library } = await import('../app/library.mjs');
+  const inbox = path.join(root, 'Ogg Inbox'),
+    book = path.join(inbox, 'Mixed Ogg'),
+    volume = path.join(root, 'Ogg Player');
+  await fs.mkdir(book, { recursive: true });
+  await fs.mkdir(volume);
+  await ensureDeviceMarker(volume, 'Ogg test');
+  await fs.copyFile(path.join(fixture, 'tone-vorbis.ogg'), path.join(book, '01 Vorbis.ogg'));
+  await fs.copyFile(path.join(fixture, 'tone-mono.opus'), path.join(book, '02 Opus.ogg'));
+  const old = new Date(Date.now() - 10000);
+  await fs.utimes(book, old, old);
+  const before = await fingerprint(book);
+  const device = new Device(volume, async (p) => {
+      const s = await fs.lstat(p);
+      return { dev: s.dev, ino: s.ino };
+    }),
+    library = new Library({
+      inbox,
+      device,
+      convertOpus: true,
+      conversionCache: path.join(root, 'ogg-aac-cache'),
+      conversionOptions: { encode: encoder },
+    });
+  await library.scan();
+  await library.transfer([library.rows[0].key], 'sync');
+  assert.equal(library.busy, false);
+  let check = await checkLibrary(device.root, { verifyHashes: true });
+  assert.ok(check.playlists[0].ok);
+  assert.ok(check.playlists[0].manifest.tracks.every((t) => t.mimeType === 'audio/mp4'));
+  assert.ok(Math.abs((await device.inspect()).audioDurationMs - 4500) < 500);
+  assert.equal(await fingerprint(book), before);
+  const bad = path.join(inbox, 'Broken Ogg');
+  await fs.mkdir(bad);
+  await fs.writeFile(path.join(bad, '01 broken.ogg'), 'not an Ogg file');
+  await fs.utimes(bad, old, old);
+  await library.scan(true);
+  await library.scan(true);
+  const keys = library.rows.filter((r) => r.local).map((r) => r.key);
+  await assert.rejects(library.transfer(keys, 'sync'), /convert|Ogg/i);
+  assert.equal(library.busy, false);
+  assert.equal(library.lastResult.tone, 'error');
+  assert.ok((await checkLibrary(device.root, { verifyHashes: true })).playlists[0].ok);
+  await fs.copyFile(path.join(fixture, 'tone-vorbis.ogg'), path.join(bad, '01 broken.ogg'));
+  await library.scan(true);
+  await library.scan(true);
+  await library.transfer(keys, 'sync');
+  check = await checkLibrary(device.root, { verifyHashes: true });
+  assert.equal(check.playlists.length, 2);
+  assert.ok(check.playlists.every((p) => p.ok));
+  assert.equal(library.lastResult.tone, 'success');
+});
+test.after(async () => {
+  await fs.rm(root, { recursive: true, force: true });
+});
+test('Chrome ZIP and plain-folder Opus imports convert without editing either source', async () => {
+  const chrome = path.join(root, 'Chrome Opus');
+  await fs.mkdir(path.join(chrome, 'audio'), { recursive: true });
+  await fs.mkdir(path.join(chrome, 'data'));
+  await fs.copyFile(
+    path.join(fixture, 'tone-stereo.opus'),
+    path.join(chrome, 'audio', '00 - Chapter.opus'),
+  );
+  await fs.writeFile(
+    path.join(chrome, 'data', 'metadata.json'),
+    JSON.stringify({ title: 'Download information' }),
+  );
+  await fs.writeFile(
+    path.join(chrome, 'data', 'simplified-card-data.json'),
+    JSON.stringify({ title: 'Chrome Opus', chapters: [{ key: '00', title: 'Original title' }] }),
+  );
+  const { default: yazl } = await import('yazl'),
+    { createWriteStream } = await import('node:fs'),
+    { pipeline } = await import('node:stream/promises'),
+    { tree } = await import('../app/archive.mjs');
+  const zip = new yazl.ZipFile();
+  for (const file of await tree(chrome)) zip.addFile(path.join(chrome, file.name), file.name);
+  zip.end();
+  const zipped = path.join(root, 'Chrome Opus.zip');
+  await pipeline(zip.outputStream, createWriteStream(zipped));
+  const plain = path.join(root, 'Plain Opus');
+  await fs.mkdir(plain);
+  await fs.copyFile(
+    path.join(fixture, 'tone-mono.opus'),
+    path.join(plain, '01 - Plain title.opus'),
+  );
+  for (const source of [zipped, plain]) {
+    const before = await fingerprint(source),
+      p = await prepare(source, {
+        convertOpus: true,
+        conversionCache: path.join(root, 'cache-formats'),
+        encode: encoder,
+      });
+    assert.equal(p.playlist.tracks.length, 1);
+    assert.ok(p.playlist.tracks[0].entry.file.endsWith('.m4a'));
+    if (source === zipped) assert.equal(p.playlist.tracks[0].entry.title, 'Original title');
+    await p.cleanup();
+    assert.equal(await fingerprint(source), before);
+  }
+});
+test('clearing the AAC cache permits a fresh encoding on resync, even if encoder metadata differs', async () => {
+  const { Library } = await import('../app/library.mjs');
+  const inbox = path.join(root, 'Cache reset Inbox'),
+    book = path.join(inbox, 'Cache reset');
+  await fs.mkdir(book, { recursive: true });
+  await fs.copyFile(path.join(fixture, 'tone-mono.opus'), path.join(book, '01.opus'));
+  const old = new Date(Date.now() - 10000);
+  await fs.utimes(book, old, old);
+  const volume = path.join(root, 'cache-reset-device');
+  await fs.mkdir(volume);
+  await ensureDeviceMarker(volume, 'Cache reset test');
+  const device = new Device(volume, async (p) => {
+    const s = await fs.lstat(p);
+    return { dev: s.dev, ino: s.ino };
+  });
+  const cache = path.join(root, 'reset-aac-cache');
+  let passes = 0;
+  const timings = [];
+  const encode = async (input, output, { signal }) => {
+    await run(
+      '/usr/bin/ffmpeg',
+      [
+        '-v',
+        'error',
+        '-i',
+        input,
+        '-c:a',
+        'aac',
+        '-b:a',
+        '96000',
+        '-metadata',
+        'comment=encoding-' + ++passes,
+        output,
+      ],
+      { signal },
+    );
+  };
+  const library = new Library({
+    inbox,
+    device,
+    convertOpus: true,
+    conversionCache: cache,
+    conversionOptions: { encode, onTiming: (event) => timings.push(event) },
+  });
+  await library.scan();
+  const key = library.rows[0].key;
+  await library.transfer([key], 'sync');
+  const first = library.rows[0].content;
+  await library.transfer([key], 'remove');
+  await fs.rm(cache, { recursive: true, force: true });
+  await library.transfer([key], 'sync');
+  assert.equal(passes, 2);
+  assert.ok(
+    timings.some(
+      (e) => e.event === 'encode-complete' && e.stageMs >= 0 && e.playlist === 'Cache reset',
+    ),
+  );
+  assert.notEqual(library.rows[0].content, first);
+  assert.ok((await checkLibrary(device.root, { verifyHashes: true })).playlists[0].ok);
+  assert.ok(await fs.stat(path.join(book, '01.opus')));
 });

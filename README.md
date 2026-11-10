@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.4.6](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.6/Pocket-Drop-4.4.6-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.4.6](https://github.com/greenmamabug/pocket-drop/releases/download/v4.4.6/Pocket-Drop-4.4.6-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.5.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.5.0/Pocket-Drop-4.5.0-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.5.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.5.0/Pocket-Drop-4.5.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
@@ -132,3 +132,11 @@ After syncing, eject Pocket and leave USB-storage mode so the player can reload 
 ## Track details
 
 The editor has no Tags controls. Each track shows its measured length and original file size under the filename. Sizes are available without extracting audio; previously measured lengths appear immediately. Other lengths fill in asynchronously while editing remains available. Closing details cancels archive extraction for its metrics. Prepared/synced audio retains durations by original track key so reordering and reopening do not require another probe. Saving keeps any pre-existing tag data; removing the UI does not delete original metadata.
+
+## Maintainer guide
+
+See [Architecture](docs/ARCHITECTURE.md) for module boundaries and invariants, and
+[Maintenance audit](docs/AUDIT.md) for fixes, regression evidence and remaining
+hardware validation. Run `npm run check`, `npm test`, `npm run test:ui` and
+`npm run test:desktop` as described there. `npm run format` keeps first-party
+code consistent. Vendored upstream code is excluded from formatting.
