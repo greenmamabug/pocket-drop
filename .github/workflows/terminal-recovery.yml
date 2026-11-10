@@ -1,0 +1,32 @@
+name: Check Terminal recovery launcher
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download the existing verified Intel release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v4.7.4 --repo "$GITHUB_REPOSITORY" --pattern 'Pocket-Drop-4.7.4-mac-x64.zip' --dir /tmp/pocket-recovery-app
+          cd /tmp/pocket-recovery-app
+          echo '435eb032f6ab2a7a41bbb2dde8bdd2f6169b91997cbe1abdb662fbd501a71aba  Pocket-Drop-4.7.4-mac-x64.zip' | shasum -a 256 -c -
+          ditto -x -k Pocket-Drop-4.7.4-mac-x64.zip .
+      - name: Verify Terminal imports and bundled runtime without opening USB
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: |
+          APP='/tmp/pocket-recovery-app/Pocket Drop.app'
+          codesign --verify --deep --strict "$APP"
+          "$APP/Contents/MacOS/Pocket Drop" scripts/terminal-player-recovery.mjs --check --app-main "$APP/Contents/Resources/app.asar/app/main.mjs"
+          "$APP/Contents/MacOS/Pocket Drop" --test test/player-terminal-recovery.test.mjs
