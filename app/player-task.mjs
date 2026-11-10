@@ -118,9 +118,12 @@ export async function executePlayerTask(
   if (!path.isAbsolute(input.firmwareDir)) throw new Error('Choose a backup folder on your Mac.');
   await fs.mkdir(input.firmwareDir, { recursive: true, mode: 0o700 });
   const disk = await statfs(input.firmwareDir);
-  if (Number(disk.bavail) * Number(disk.bsize) < 6 * 1024 ** 3)
+  const initialSpace = input.action === 'prepare' ? 6 * 1024 ** 3 : 128 * 1024 ** 2;
+  if (Number(disk.bavail) * Number(disk.bsize) < initialSpace)
     throw new Error(
-      'Keep at least 6 GB free on the Mac for backups, preparation and full verification.',
+      input.action === 'prepare'
+        ? 'Keep at least 6 GB free on the Mac before reading/preparing player backups.'
+        : 'Free at least 128 MB on the Mac to review the saved update.',
     );
   const tools = await fs.mkdtemp(path.join(cache, 'session-'));
   const previousTools = [process.env.STUDIO_POCKET_E2FS_DIR, process.env.STUDIO_POCKET_MTK_BIN];
@@ -174,6 +177,16 @@ export async function executePlayerTask(
     if (input.action !== 'write') return summary;
     if (input.confirmation !== 'WRITE' || !input.expected)
       throw new Error('Review and confirm the prepared update first. Nothing was written.');
+    const currentDisk = await statfs(input.firmwareDir);
+    if (!Number.isSafeInteger(plan.imageSizeBytes) || plan.imageSizeBytes <= 0)
+      throw new Error('The prepared image size is not valid. Nothing was written.');
+    if (
+      Number(currentDisk.bavail) * Number(currentDisk.bsize) <
+      plan.imageSizeBytes + 256 * 1024 ** 2
+    )
+      throw new Error(
+        'Not enough Mac storage for the full verification readback. Free space and retry the prepared update; nothing was written.',
+      );
     emit({
       label: 'Waiting for player — press the reset pinhole with the cable connected',
       percent: null,

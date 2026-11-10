@@ -254,7 +254,7 @@ test('isolated task refuses changed plans and missing confirmation, and requires
       }),
       planWrite: async (_platform, options) => {
         assert.equal(options.verify, 'full');
-        return { ...summary, expectCid: summary.unitId };
+        return { ...summary, expectCid: summary.unitId, imageSizeBytes: 1024 ** 3 };
       },
       executeWrite: async (_platform, _plan, onProgress) => {
         writes++;
@@ -300,4 +300,15 @@ test('isolated task refuses changed plans and missing confirmation, and requires
       /did not finish verification/,
     );
     assert.equal(writes, 2);
+    full = 'match';
+    const lowerSpace = { ...deps, statfs: async () => ({ bavail: 2, bsize: 1024 ** 3 }) };
+    assert.equal((await executePlayerTask(input, () => {}, lowerSpace)).verified, true);
+    await assert.rejects(
+      executePlayerTask(input, () => {}, {
+        ...deps,
+        statfs: async () => ({ bavail: 1, bsize: 1024 ** 3 }),
+      }),
+      /verification readback/,
+    );
+    assert.equal(writes, 3, 'insufficient verification storage must never reach the writer');
   }));

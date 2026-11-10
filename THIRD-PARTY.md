@@ -14,7 +14,7 @@ Pocket Drop is distributed under **GPL-3.0-only**, consistent with its use of St
 
 Pocket Drop's adapter adds safe ZIP access, Chrome archive metadata synthesis, artwork hash comparison, local discovery, USB-volume/identity checks, and a graphical UI. Planning, transfers, removal, state cleanup, and library index writes use the upstream engine.
 
-## Studio Pocket player updater (4.6.0)
+## Studio Pocket player updater (4.6.1)
 
 `vendor/firmware-tools` preserves the public GPL-3.0-only firmware engine source from Studio Pocket **v0.7.0**, commit `06f11b08ff4a10c9ab4d38ea4000869090298174` (Ashworth Digital Ltd), with its LICENSE and COPYING.commercial. Runtime source is unchanged. The original package manifest and build configuration are retained; compiled output is built from the included source. No proprietary Studio Pocket desktop code is used.
 

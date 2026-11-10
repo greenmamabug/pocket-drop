@@ -1,3 +1,7 @@
+# 4.6.1
+
+- Size the final verification-space check against the actual prepared image plus a reserve; do not require another 6 GB after the backup/preparation has used disk space.
+
 # 4.6.0 — guided player software updates
 
 - Add a separate Settings wizard for updating existing Studio Pocket players to the official 0.7.0 pre-release.
