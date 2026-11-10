@@ -1,3 +1,13 @@
+# 4.7.1 — player update feedback and retained read errors
+
+- Preserve the USB reader traceback, including the final error cause, when backup/preparation fails; retain the full operation log across launches.
+- Save player-update failures in Recent Activity. Release the operation lock after failed reads so preparation can be retried.
+- Show an illustrated reset-pinhole connection guide, acknowledge actual USB-reader detection, and close the guide automatically; allow it to continue in the background.
+- Add a persistent View update progress entry, detailed timestamped logs and elapsed time. Keep phase text steady while backup percentages change.
+- Keep the update header green while USB storage is intentionally unmounted; animate the player during preparation, with reduced-motion support.
+- Publish Intel Mac builds only going forward. No player firmware engine or write-validation checks changed.
+- The reported exit-1 failure cannot be diagnosed from “Traceback” alone; this patch retains the missing evidence rather than claiming a physical USB failure has been resolved.
+
 # 4.7.0 — collection looks
 
 - Add Icon, Picture, Chosen covers and Recent covers using Studio Pocket’s public v0.7.0 library format.

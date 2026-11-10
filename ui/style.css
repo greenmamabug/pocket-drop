@@ -3927,3 +3927,111 @@ svg,
   line-height: 1.5;
   max-width: 800px;
 }
+
+/* Firmware work has its own status; USB storage being unmounted is expected. */
+.device-panel.player-preparing {
+  background: #edf8ec;
+}
+.device-panel.player-preparing .device-icon {
+  position: relative;
+}
+.device-panel.player-preparing .device-icon svg {
+  animation: player-dance 3.8s ease-in-out infinite;
+  overflow: visible;
+}
+.device-panel.player-preparing .clickwheel-player rect:first-child {
+  fill: #f1e3ff;
+  stroke: #8552af;
+}
+.device-panel.player-preparing .device-icon::after {
+  content: '✦';
+  position: absolute;
+  color: #9854cc;
+  font-size: 24px;
+  right: -8px;
+  top: -7px;
+  animation: player-sparkle 1.9s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes player-dance {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    transform: scale(0.72) rotate(0deg);
+  }
+  65% {
+    transform: scale(0.72) rotate(360deg);
+  }
+  85% {
+    transform: scale(1.07) rotate(360deg);
+  }
+}
+@keyframes player-sparkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+#view-player-progress {
+  align-self: flex-start;
+  padding: 4px 0;
+  font-weight: 650;
+}
+#player-detail-lines {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f7f3fa;
+  border: 1px solid #e4d9eb;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  user-select: text;
+}
+#player-update-error {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 170px;
+  overflow: auto;
+}
+.player-connection-guide {
+  width: min(650px, 92vw);
+  text-align: center;
+}
+#player-guide-diagram {
+  width: 100%;
+  max-height: 310px;
+}
+.paperclip-press {
+  animation: pinhole-press 1.8s ease-in-out infinite;
+}
+@keyframes pinhole-press {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  55% {
+    transform: translateY(-16px);
+  }
+}
+.player-guide-success {
+  font-size: 80px;
+  color: #23893b;
+  padding: 24px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .device-panel.player-preparing .device-icon svg,
+  .device-panel.player-preparing .device-icon::after,
+  .paperclip-press {
+    animation: none;
+  }
+}

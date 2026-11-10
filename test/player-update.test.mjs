@@ -312,3 +312,89 @@ test('isolated task refuses changed plans and missing confirmation, and requires
     );
     assert.equal(writes, 3, 'insufficient verification storage must never reach the writer');
   }));
+
+test('failed USB reads preserve the traceback cause and connection steps without attempting a write', () =>
+  temporary(async (root) => {
+    const events = [];
+    let writes = 0;
+    const deps = {
+      api: {
+        inspectApkFile: async () => ({}),
+        acceptApk: () => ({ ok: true, signerSha256: PLAYER_SIGNER }),
+        bundledManifests: () => [],
+        readDeviceSystem: async (_p, _options, cb) => {
+          cb.stage('read');
+          cb.mtk({ phase: 'waiting', percent: null }, 'Status: Waiting for PreLoader');
+          cb.mtk({ phase: 'handshake', percent: null }, 'Device detected :)');
+          cb.mtk(null, 'Traceback (most recent call last):');
+          cb.mtk(null, '  File "usb/core.py", line 1');
+          cb.mtk(null, 'USBError: connection was lost');
+          throw new Error(
+            'could not read the player (mtkclient exit 1): Traceback (most recent call last):',
+          );
+        },
+        executeWrite: async () => {
+          writes++;
+        },
+      },
+      platform: {},
+      download: async (folder, asset) => {
+        await fs.mkdir(folder, { recursive: true });
+        return path.join(folder, asset.name);
+      },
+      extract: async () => {},
+      statfs: async () => ({ bavail: 100, bsize: 1024 ** 3 }),
+    };
+    await assert.rejects(
+      executePlayerTask(
+        { action: 'prepare', cache: path.join(root, 'cache'), firmwareDir: root, arch: 'x64' },
+        (e) => events.push(e),
+        deps,
+      ),
+      (error) => {
+        assert.match(error.message, /Nothing was written/);
+        assert.match(error.message, /USBError: connection was lost/);
+        assert.match(error.message, /USB reader details/);
+        return true;
+      },
+    );
+    assert.equal(writes, 0);
+    assert.ok(events.some((e) => e.connectionPhase === 'waiting'));
+    assert.ok(events.some((e) => e.connectionPhase === 'handshake'));
+  }));
+
+test('player failures persist in Activity and Details, clear the busy state and allow retry', () =>
+  temporary(async (root) => {
+    const { updater, runner, library } = await fixture(root);
+    const activity = [];
+    library.log = async (text, tone) => activity.push({ text, tone });
+    const run = runner.run;
+    runner.run = async (_input, event) => {
+      event({ label: 'Waiting for player', connectionPhase: 'waiting', percent: null });
+      event({ line: 'USBError: fixture read failure' });
+      throw new Error('could not read the player: USBError: fixture read failure');
+    };
+    await assert.rejects(updater.prepare(), /could not read/);
+    assert.equal(library.busy, false);
+    assert.equal(updater.state.running, false);
+    assert.equal(updater.state.connectionPhase, null);
+    assert.equal(updater.state.token, null);
+    assert.match(activity[0].text, /fixture read failure/);
+    assert.equal(activity[0].tone, 'error');
+    assert.match(
+      await fs.readFile(path.join(root, 'player-update-details.json'), 'utf8'),
+      /fixture read failure/,
+    );
+    const restored = await new PlayerUpdater({
+      library,
+      runner,
+      folder: root,
+      platform: 'darwin',
+      arch: 'x64',
+    }).load();
+    assert.ok(restored.state.details.some((line) => line.includes('fixture read failure')));
+    runner.run = run;
+    await updater.prepare();
+    assert.equal(updater.state.phase, 'prepared');
+    assert.equal(updater.state.error, null);
+  }));

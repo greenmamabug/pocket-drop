@@ -8,11 +8,11 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.7.1](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.1/Pocket-Drop-4.7.1-mac-x64.zip).
+- **Apple Silicon (M-series, previous release):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
-Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
+These require macOS Monterey 12 or later. New releases currently target Intel Macs. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
 
 The supplied icon is included as the Finder application icon with standard and Retina sizes. If Finder retains an older cached icon after replacement, relaunch Finder or sign out and back in. The ZIP file has its normal archive icon.
 
@@ -150,3 +150,5 @@ See [Architecture](docs/ARCHITECTURE.md) for module boundaries and invariants, a
 hardware validation. Run `npm run check`, `npm test`, `npm run test:ui` and
 `npm run test:desktop` as described there. `npm run format` keeps first-party
 code consistent. Vendored upstream code is excluded from formatting.
+
+Player-update failures are saved in Recent Activity. In Settings, choose **View update progress**, **Continue player update**, or **Review update error** to reopen the wizard. **Details…** shows timestamped reader output, including the final lines of a traceback. If Back up & prepare fails, no update was written to the player; reconnect/power off as prompted and retry. An interrupted write is different: retain the backup and use the existing review/retry recovery flow.

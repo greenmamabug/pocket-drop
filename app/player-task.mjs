@@ -10,7 +10,7 @@ import { PLAYER_ASSETS, PLAYER_SIGNER, PLAYER_VERSION, downloadAsset } from './p
 
 const exec = promisify(execFile);
 const labels = {
-  read: 'Reading player backup',
+  read: 'Connecting to player',
   measure: 'Checking partition layout',
   extract: 'Saving player backup',
   identify: 'Checking player compatibility',
@@ -61,13 +61,25 @@ export async function executePlayerTask(
     throw new Error('Unknown player operation.');
   if (!['x64', 'arm64'].includes(input.arch)) throw new Error('Unsupported Mac architecture.');
   const progress = (label, bytes, total) =>
-    emit({ label, percent: total > 0 ? Math.min(100, (bytes / total) * 100) : null });
-  const log = (line) => emit({ line: String(line).slice(0, 1500) });
+    emit({
+      label: label === 'Reading the player' ? 'Reading player backup' : label,
+      percent: total > 0 ? Math.min(100, (bytes / total) * 100) : null,
+    });
+  const recentLines = [];
+  const log = (line) => {
+    const text = String(line)
+      .replace(/\x1b\[[0-9;]*m/g, '')
+      .slice(0, 1500);
+    recentLines.push(text);
+    if (recentLines.length > 60) recentLines.shift();
+    emit({ line: text });
+  };
   let writeSeen = false;
   const cb = {
     log,
     stage: (s) => {
-      if (labels[s]) emit({ label: labels[s], percent: null });
+      if (labels[s])
+        emit({ label: labels[s], percent: null, connectionPhase: s === 'read' ? 'waiting' : null });
     },
     progress,
     mtk: (p, line) => {
@@ -85,8 +97,12 @@ export async function executePlayerTask(
                   ? 'Reading back to verify — do not unplug'
                   : 'Checking player identity — do not unplug'
                 : 'Reading player backup'
-              : null;
-      if (label) emit({ label, percent: p.percent });
+              : p.phase === 'handshake'
+                ? 'Player detected — connecting'
+                : p.phase === 'da'
+                  ? 'Starting the player connection'
+                  : null;
+      if (label) emit({ label, percent: p.percent, connectionPhase: p.phase, missed: !!p.missed });
     },
   };
   const cache = path.join(input.cache, PLAYER_VERSION);
@@ -103,7 +119,11 @@ export async function executePlayerTask(
   const inspection = await api.inspectApkFile(platform, files.apk);
   const accepted = api.acceptApk(inspection);
   if (!accepted.ok || accepted.signerSha256 !== PLAYER_SIGNER)
-    throw new Error('The official player signing certificate did not verify. Nothing was written.');
+    throw new Error(
+      !accepted.ok
+        ? 'This player release cannot be installed: ' + accepted.refusal + '. Nothing was written.'
+        : 'The official player signing certificate did not verify. Nothing was written.',
+    );
   if (input.action === 'download') {
     if (input.firmwareDir) {
       emit({ label: 'Checking the download agent', percent: null });
@@ -189,6 +209,7 @@ export async function executePlayerTask(
       );
     emit({
       label: 'Waiting for player — press the reset pinhole with the cable connected',
+      connectionPhase: 'waiting',
       percent: null,
     });
     const outcome = await api.executeWrite(p, plan, cb.mtk);
@@ -198,6 +219,25 @@ export async function executePlayerTask(
           outcome.verification.detail,
       );
     return { ...summary, verified: true };
+  } catch (error) {
+    if (
+      /could not read the player|mtkclient exit|Traceback/i.test(error.message) &&
+      recentLines.length
+    ) {
+      const cause = [...recentLines]
+        .reverse()
+        .find((line) => /\b\w*(?:Error|Exception):/.test(line));
+      throw new Error(
+        (input.action === 'prepare'
+          ? 'The player backup could not finish. Nothing was written to the player. '
+          : '') +
+          (cause ? cause + '\n\n' : '') +
+          error.message +
+          '\n\nUSB reader details:\n' +
+          recentLines.slice(-35).join('\n'),
+      );
+    }
+    throw error;
   } finally {
     for (const [index, key] of ['STUDIO_POCKET_E2FS_DIR', 'STUDIO_POCKET_MTK_BIN'].entries()) {
       if (previousTools[index] === undefined) delete process.env[key];

@@ -414,6 +414,39 @@ try {
   await page.locator('#player-confirm-write').fill('WRITE');
   assert.equal(await page.locator('#player-write').isDisabled(), false);
   await page.locator('#player-write').click();
+  await page.locator('#player-update-close').click();
+  await page.evaluate(() => {
+    window.state.busy = true;
+    window.state.operation = 'player-update';
+    window.state.device.connected = false;
+    Object.assign(window.state.playerUpdate, {
+      action: 'prepare',
+      running: true,
+      startedAt: 1234,
+      connectionAttempt: 1,
+      connectionPhase: 'waiting',
+      label: 'Waiting for player',
+      details: ['USB reader started'],
+    });
+    window.sendState(window.state);
+  });
+  await page.locator('#player-connection-guide').waitFor({ state: 'visible' });
+  await page.locator('#player-guide-diagram').waitFor({ state: 'visible' });
+  assert.equal(
+    await page.locator('#device-panel').evaluate((e) => e.classList.contains('connected')),
+    true,
+  );
+  assert.equal(await page.locator('#manage-player').innerText(), 'View update progress…');
+  await page.evaluate(() => {
+    window.state.playerUpdate.connectionPhase = 'handshake';
+    window.sendState(window.state);
+  });
+  assert.equal(await page.locator('#player-guide-title').innerText(), 'Player detected');
+  await page.locator('#player-connection-guide').waitFor({ state: 'hidden' });
+  await page.locator('#view-player-progress').click();
+  await page.locator('#player-operation-details').click();
+  assert.match(await page.locator('#player-detail-lines').innerText(), /USB reader started/);
+
   assert.ok(
     await page.evaluate(() =>
       window.calls.some(

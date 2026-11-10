@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing version tag to build
         required: true
-        default: v4.7.0
+        default: v4.7.1
   push:
     tags: ['v*']
 
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.7.0' }}
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.7.1' }}
 
 jobs:
   test:
@@ -46,8 +46,6 @@ jobs:
         include:
           - arch: x64
             runner: macos-15-intel
-          - arch: arm64
-            runner: macos-15
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     env:
@@ -79,7 +77,6 @@ jobs:
       - name: Verify player updater downloads and native tools without a device
         run: node scripts/player-tools-check.mjs
       - name: Test native Opus to AAC conversion
-        if: matrix.arch == 'arm64'
         run: |
           node --input-type=module - <<'JS'
           import fs from 'node:fs/promises';
@@ -97,7 +94,6 @@ jobs:
           } finally {await fs.rm(root,{recursive:true,force:true});}
           JS
       - name: Test editor on macOS
-        if: matrix.arch == 'arm64'
         run: node scripts/studio-desktop-check.mjs
         env:
           POCKET_PLAYER_TOOL_CHECK: '1'
@@ -128,9 +124,6 @@ jobs:
           sign(app, 'jit.plist')
           subprocess.run(['codesign', '--verify', '--deep', '--strict', '--verbose=2', str(app)], check=True)
           PY
-      - name: Verify ARM64 signatures
-        if: matrix.arch == 'arm64'
-        run: python3 scripts/check-arm64-bundle.py 'release/mac-arm64/Pocket Drop.app'
       - name: Create download
         run: |
           if test "$BUILD_ARCH" = arm64; then APP_DIR=release/mac-arm64; else APP_DIR=release/mac; fi

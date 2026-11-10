@@ -420,7 +420,11 @@ function render() {
   $('connection-check').hidden = !d.connected || ejecting;
   $('eject').setAttribute('aria-busy', String(ejecting));
   document.querySelector('.eject-caption').textContent = ejecting ? 'Ejecting…' : 'Eject';
-  $('device-panel').classList.toggle('connected', d.connected);
+  $('device-panel').classList.toggle('connected', d.connected || playerWorking);
+  $('device-panel').classList.toggle(
+    'player-preparing',
+    playerWorking && state.playerUpdate.action !== 'write',
+  );
   document.querySelector('.device-status').title = playerWorking
     ? 'Follow the player software update instructions in Settings.'
     : d.connected
@@ -444,7 +448,7 @@ function render() {
   $('connection-detail').textContent = playerWorking
     ? state.playerUpdate.action === 'write'
       ? 'Do not unplug until verification finishes.'
-      : 'Follow the update instructions in Settings.'
+      : 'Update in progress. You can view its progress below.'
     : d.connected
       ? `${bytes(d.free)} free of ${bytes(d.total)}`
       : 'Turn on USB storage when prompted on your device.';

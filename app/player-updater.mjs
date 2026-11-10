@@ -27,6 +27,7 @@ export class PlayerUpdater {
       version: PLAYER_VERSION,
       running: false,
       firmwareDir: null,
+      details: [],
     };
   }
   publish(patch = {}) {
@@ -47,6 +48,16 @@ export class PlayerUpdater {
     }
   }
   async load() {
+    try {
+      const details = JSON.parse(
+        await fs.readFile(path.join(this.folder, 'player-update-details.json'), 'utf8'),
+      );
+      if (Array.isArray(details.lines))
+        this.state.details = details.lines
+          .filter((s) => typeof s === 'string')
+          .slice(-150)
+          .map((s) => s.slice(0, 1500));
+    } catch {}
     try {
       const saved = JSON.parse(await fs.readFile(this.file, 'utf8'));
       if (
@@ -144,6 +155,10 @@ export class PlayerUpdater {
       percent: null,
       startedAt: Date.now(),
       label: 'Starting player operation…',
+      details: [
+        `${new Date().toLocaleTimeString()} · Starting ${action} for Studio Pocket ${PLAYER_VERSION}`,
+      ],
+      connectionPhase: null,
     });
     let releaseSleep = () => {};
     try {
@@ -159,6 +174,7 @@ export class PlayerUpdater {
         pendingWrite: !!this.journal?.pendingWrite,
         token: null,
       });
+      await this.library.log('Player update failed: ' + error.message, 'error').catch(() => {});
       throw error;
     } finally {
       try {
@@ -168,7 +184,10 @@ export class PlayerUpdater {
       }
       this.library.busy = false;
       this.library.operation = null;
-      this.publish({ running: false });
+      this.publish({ running: false, connectionPhase: null });
+      await writeJson(path.join(this.folder, 'player-update-details.json'), {
+        lines: [...this.state.details, ...(this.state.error ? [this.state.error] : [])].slice(-150),
+      }).catch((error) => this.record('player-details-save', error));
       this.resume();
     }
   }
@@ -184,8 +203,27 @@ export class PlayerUpdater {
       },
       (event) => {
         if (event.line) this.record('player-tool', event.line);
+        const patch = {};
+        const line =
+          event.line || (event.label && event.label !== this.state.label ? event.label : null);
+        if (line)
+          patch.details = [
+            ...this.state.details,
+            `${new Date().toLocaleTimeString()} · ${String(line).slice(0, 1500)}`,
+          ].slice(-150);
         if (event.label)
-          this.publish({ label: event.label, percent: event.percent, lastProgressAt: Date.now() });
+          Object.assign(patch, {
+            label: event.label,
+            percent: event.percent,
+            lastProgressAt: Date.now(),
+          });
+        if (Object.hasOwn(event, 'connectionPhase')) {
+          patch.connectionPhase = event.connectionPhase;
+          patch.connectionMissed = !!event.missed;
+          if (event.connectionPhase === 'waiting' && this.state.connectionPhase !== 'waiting')
+            patch.connectionAttempt = (this.state.connectionAttempt ?? 0) + 1;
+        }
+        if (Object.keys(patch).length) this.publish(patch);
       },
     );
   }

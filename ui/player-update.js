@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-only
+import { installPlayerConnectionGuide } from './player-connection.js';
 export function installPlayerUpdateUI({ api, guarded, getState }) {
   const $ = (id) => document.getElementById(id);
   const request = (method, ...args) => api.invoke(method, ...args);
   let lastToken;
   const dialog = $('player-update-dialog');
+  const connectionGuide = installPlayerConnectionGuide();
+  $('player-show-guide').onclick = () => connectionGuide.show(getState().playerUpdate);
+  $('view-player-progress').onclick = () => dialog.showModal();
   $('manage-player').onclick = () => dialog.showModal();
   $('player-update-close').onclick = () => dialog.close();
   $('player-choose-backup').onclick = guarded(() => request('playerBackupFolder'));
@@ -29,9 +33,24 @@ export function installPlayerUpdateUI({ api, guarded, getState }) {
         : p.pendingWrite
           ? 'An interrupted player update needs attention.'
           : p.phase === 'complete'
-            ? 'Studio Pocket 0.7.0 update verified.'
-            : 'Update an existing Studio Pocket player to version 0.7.0.';
+            ? `Studio Pocket ${p.completedVersion ?? p.version} update verified.`
+            : `Update an existing Studio Pocket player to version ${p.version}.`;
+    $('view-player-progress').hidden = !p?.running && !p?.pendingWrite && p?.phase !== 'prepared';
+    $('manage-player').textContent = p?.running
+      ? 'View update progress…'
+      : p?.pendingWrite || p?.phase === 'prepared' || p?.phase === 'resume'
+        ? 'Continue player update…'
+        : p?.error
+          ? 'Review update error…'
+          : 'Update player software…';
     if (!p) return;
+    connectionGuide.render(p);
+    $('player-detail-lines').textContent = [
+      ...(p.details ?? []),
+      ...(p.error ? [p.error] : []),
+    ].join('\n');
+    $('player-operation-details').hidden = !p.details?.length && !p.error;
+    $('player-show-guide').hidden = !p.running || p.connectionPhase !== 'waiting';
     if (p.token !== lastToken) {
       $('player-confirm-write').value = '';
       lastToken = p.token;
@@ -54,7 +73,7 @@ export function installPlayerUpdateUI({ api, guarded, getState }) {
       ? 'Review update to retry'
       : 'Review saved update';
     $('player-cancel').hidden = !p.running || p.action === 'write';
-    $('player-progress-section').hidden = !p.label && !p.error;
+    $('player-progress-section').hidden = !p.label && !p.error && !p.details?.length;
     $('player-update-status').textContent = p.label || 'Ready';
     $('player-update-status').classList.toggle('working', p.running);
     $('player-update-progress').hidden = !p.running && p.phase !== 'complete';
@@ -78,6 +97,16 @@ export function installPlayerUpdateUI({ api, guarded, getState }) {
       ? 'Prepared for player …' + p.summary.unitId.slice(-8)
       : '';
     $('player-sleep-note').hidden = !p.running;
+    updateElapsed();
   }
+  function updateElapsed() {
+    const p = getState().playerUpdate;
+    if (!p?.startedAt) return;
+    const seconds = Math.floor((Date.now() - p.startedAt) / 1000);
+    $('player-operation-elapsed').textContent = p.running
+      ? `Elapsed ${Math.floor(seconds / 60)}m ${seconds % 60}s · ${p.connectionPhase === 'waiting' ? 'waiting for the USB reader connection' : p.label}`
+      : 'Last operation log · retained after closing this window';
+  }
+  setInterval(updateElapsed, 1000);
   return { render };
 }
