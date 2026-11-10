@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   check:
@@ -30,3 +30,31 @@ jobs:
           codesign --verify --deep --strict "$APP"
           "$APP/Contents/MacOS/Pocket Drop" scripts/terminal-player-recovery.mjs --check --app-main "$APP/Contents/Resources/app.asar/app/main.mjs"
           "$APP/Contents/MacOS/Pocket Drop" --test test/player-terminal-recovery.test.mjs
+      - name: Package and publish the checked Terminal launcher
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib, zipfile
+          output = pathlib.Path('Pocket-Drop-Terminal-Recovery-4.7.4.zip')
+          files = {
+              'terminal-player-recovery.mjs': 'scripts/terminal-player-recovery.mjs',
+              'Start.command': 'scripts/terminal-recovery-start.command',
+              'README.md': 'docs/terminal-player-recovery.md',
+              'LICENSE': 'LICENSE',
+          }
+          with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+              for name, source in files.items():
+                  info = zipfile.ZipInfo('Pocket-Drop-Terminal-Recovery/' + name, (2026, 11, 10, 20, 0, 0))
+                  info.create_system = 3
+                  info.external_attr = (0o100755 if name == 'Start.command' else 0o100644) << 16
+                  info.compress_type = zipfile.ZIP_DEFLATED
+                  archive.writestr(info, pathlib.Path(source).read_bytes())
+          with zipfile.ZipFile(output) as archive:
+              assert archive.testzip() is None
+              assert len(archive.namelist()) == 4
+          digest = hashlib.sha256(output.read_bytes()).hexdigest()
+          pathlib.Path('SHA256SUMS-Terminal-Recovery.txt').write_text(digest + '  ' + output.name + '\n')
+          print(output.name, output.stat().st_size, digest)
+          PY
+          gh release upload v4.7.4 --repo "$GITHUB_REPOSITORY" Pocket-Drop-Terminal-Recovery-4.7.4.zip SHA256SUMS-Terminal-Recovery.txt --clobber
