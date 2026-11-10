@@ -71,7 +71,7 @@ export class Library extends EventEmitter {
       collectionPictures: Object.fromEntries(
         Object.entries(this.catalog?.data.collectionPictures ?? {}).map(([id, p]) => [
           id,
-          { thumbnail: p.thumbnail },
+          { thumbnail: p.thumbnail, cardThumbnail: p.cardThumbnail ?? null },
         ]),
       ),
       operationStartedAt: this.operationStartedAt ?? null,

@@ -15,6 +15,7 @@ format and stages transfers. Vendor code is kept separate and is not reformatted
 | Player software | Pinned release verification, isolated upstream firmware engine, confirmation and recovery journal | `player-release`, `player-task`, `player-worker`, `player-runner`, `player-updater`, `player-ipc` |
 | Persistence | Serialize mutations and atomically replace JSON | `catalog`, `settings-store`, `atomic-json` |
 | Metadata | Pure calculations separate from actual file probing | `audio-metadata`, `collection-state`, `audio-probe` |
+| Collection appearance | Shared display/preview/member rules and normalized portrait/icon assets | `collection-model`, `collection-artwork`, `ui/collection-appearance` |
 | Background | Quiet duration/duplicate discovery, cancellation, cache reuse | `duration-index`, workspace duplicate scheduler |
 | Renderer | Display state, collect intent, preserve editor drafts | `ui/app.js`, `ui/studio.js` |
 

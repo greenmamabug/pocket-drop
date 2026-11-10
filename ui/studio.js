@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { installPlayerUpdateUI } from './player-update.js';
+import { installCollectionAppearance, collectionStackHTML } from './collection-appearance.js';
+import {
+  COLLECTION_LOOKS,
+  collectionLook,
+  collectionAppearance,
+  withCollectionMembers,
+} from '../app/collection-model.mjs';
 const panels = `
 <dialog id="audio-editor" class="audio-editor"><div class="editor-heading"><div><span class="eyebrow">AUDIO DETAILS</span><h3>Edit audio</h3></div><button class="text-button" id="editor-close">Close</button></div><p id="editor-notice" class="notice" hidden></p><div class="editor-summary"><div><div class="cover-crop-preview" id="cover-crop-preview"><img id="editor-cover" alt="Cover preview"></div><button class="text-button" id="change-cover">Change cover…</button></div><div class="editor-fields"><label>Title<input id="editor-title" maxlength="200"></label><div class="cover-controls"><label>Cover framing<select id="cover-mode"><option value="fit">Fit whole image</option><option value="fill">Fill card shape</option></select></label><label>Vertical position<input id="cover-position" type="range" min="0" max="100" value="50"></label></div><p class="hint">Edits apply to the version you sync. Your Inbox originals stay unchanged.</p></div></div><div class="track-tools"><label>Find a track<input id="track-search" type="search" placeholder="Search tracks…"></label><button class="text-button" id="import-track-icon">Import track icon…</button><button class="text-button" id="reset-track-edits">Reset to original details</button></div><p class="hint">Drag the grip or use ↑ and ↓ to reorder. Assign icons using each track’s icon menu. Delete excludes a track from this version; Restore brings it back.</p><div id="track-list" class="track-list"></div><div class="audio-preview"><span id="preview-track-name">Choose Play on a track to preview it.</span><audio id="track-player" controls preload="none"></audio><span id="preview-error" class="hint" hidden></span></div><div class="editor-footer"><button class="text-button danger" id="trash-original-tracks" hidden>Move excluded originals to Trash…</button><span id="editor-save-status" role="status"></span><button class="button" id="editor-save-only">Save</button><button class="button primary" id="editor-save">Save and close</button></div></dialog>
-<dialog id="collection-dialog" class="studio-dialog"><h3 id="collection-dialog-title">Collection</h3><div class="collection-picture-controls"><img id="collection-picture-preview" class="collection-picture" alt="Collection picture" hidden><button class="button" id="collection-picture-change">Change picture…</button><button class="text-button" id="collection-picture-clear">Clear picture</button></div><label>Name<input id="collection-name" maxlength="40"></label><label>Find audio<input id="collection-search" type="search" placeholder="Search titles…"></label><p class="hint">Choose members, then drag selected items or use ↑ and ↓ to arrange their order on Pocket. Choosing an item from another collection moves it here.</p><div id="collection-members" class="collection-members"></div><div class="dialog-actions"><button class="button" id="collection-cancel">Cancel</button><button class="button primary" id="collection-save">Save collection</button></div></dialog>
+<dialog id="collection-dialog" class="studio-dialog collection-editor"><h3 id="collection-dialog-title">Collection</h3><label>Name<input id="collection-name" maxlength="40"></label><div class="collection-design"><div class="collection-live-preview"><span id="collection-card-preview"></span><span class="hint">Pocket preview</span></div><div class="collection-design-controls"><label>Look on Pocket<select id="collection-look"><option value="icon">Icon</option><option value="image">Picture</option><option value="covers">Chosen covers</option><option value="recent">Recent covers</option></select></label><div class="collection-picture-controls"><img id="collection-picture-preview" class="collection-picture" alt="Collection picture" hidden><button class="button" id="collection-picture-change">Change picture…</button><button class="text-button" id="collection-picture-clear">Clear picture</button></div><label class="collection-picture-toggle" id="collection-use-picture-row" hidden><input type="checkbox" id="collection-use-picture">Include collection picture on top</label></div></div><p class="hint" id="collection-look-hint"></p><div id="collection-cover-choices" class="collection-cover-choices" hidden></div><label>Find audio<input id="collection-search" type="search" placeholder="Search titles…"></label><p class="hint">Choose members, then drag selected items or use ↑ and ↓ to arrange their order on Pocket. Choosing an item from another collection moves it here.</p><div id="collection-members" class="collection-members"></div><div class="dialog-actions"><button class="button" id="collection-cancel">Cancel</button><button class="button primary" id="collection-save">Save collection</button></div></dialog>
 <dialog id="prepare-dialog" class="studio-dialog"><h3>Prepare audio</h3><p>Convert and cache audio on your Mac before connecting Pocket. You can keep using the app and eject Pocket while preparation runs.</p><div id="prepare-items" class="prepare-items"></div><div class="dialog-actions"><button class="button" id="prepare-cancel">Cancel</button><button class="button primary" id="prepare-start">Prepare selected audio</button></div></dialog>
 <dialog id="duplicates-dialog" class="studio-dialog"><h3>Compare matching imports</h3><p>Compare audio bytes to distinguish identical files from different editions. Choosing a preferred import hides the others; all originals stay in your Inbox.</p><div id="duplicate-groups"></div><div id="duplicate-results" role="status"></div><div class="dialog-actions"><button class="button" id="duplicates-close">Close</button></div></dialog>
 <dialog id="problem-dialog" class="studio-dialog"><h3 id="problem-title"></h3><p id="problem-action"></p><ul id="problem-files"></ul><details><summary>Technical details</summary><pre id="problem-details"></pre></details><div class="dialog-actions"><button class="button" id="problem-close">Close</button></div></dialog>`;
@@ -359,6 +366,12 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
       $('trash-original-tracks').disabled = false;
     }
   });
+  const appearance = installCollectionAppearance({
+    getDraft: () => groupDraft,
+    getPicture: () => pictureDraft,
+    getState,
+    esc,
+  });
   const currentGroups = () => getState().collections ?? [];
   async function saveGroups(groups, changes = {}) {
     const saved = await request('saveCollections', groups, changes);
@@ -377,23 +390,23 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
     const synced = (group) =>
       deviceGroups.some(
         (g) =>
-          g.id === group.id &&
-          g.title === group.title &&
-          g.icon === group.icon &&
-          JSON.stringify(g.playlists) === JSON.stringify(group.playlists),
+          JSON.stringify(collectionAppearance(g)) === JSON.stringify(collectionAppearance(group)),
       );
-    $('collection-sync-status').textContent = !state.device.connected
-      ? 'Collections are saved on this computer. Connect Pocket and click Sync Collections to copy them.'
-      : state.collectionSyncNeeded || groups.some((g) => !synced(g))
-        ? 'Collection changes are waiting. Click Sync in Audio Library or Sync Collections here, then eject Pocket to load them.'
-        : groups.length
-          ? 'Collection arrangement matches Pocket. Eject Pocket and leave USB-storage mode to load it on the player.'
-          : '';
+    $('collection-sync-status').textContent =
+      state.operation === 'collections-read'
+        ? 'Reading collections and pictures from Pocket…'
+        : !state.device.connected
+          ? 'Saved on this computer. Connect Pocket to sync.'
+          : state.collectionSyncNeeded || groups.some((g) => !synced(g))
+            ? 'Collection changes ready to sync.'
+            : groups.length
+              ? 'Collections match Pocket. Eject Pocket to load the changes.'
+              : '';
     $('collection-cards').innerHTML = groups.length
       ? groups
           .map(
             (group, index) =>
-              `<article class="collection-card" data-group-card="${esc(group.id)}"><span class="group-grip" draggable="true" data-group-grip="${esc(group.id)}" aria-label="Drag ${esc(group.title)}">⠿</span>${state.collectionPictures?.[group.id]?.thumbnail ? `<img class="collection-picture" src="${esc(state.collectionPictures[group.id].thumbnail)}" alt="${esc(group.title)}">` : centerGlyph()}<div><h3>${esc(group.title)}</h3><p>${group.playlists.length} audio item${group.playlists.length === 1 ? '' : 's'} · ${group.playlists.filter((id) => state.rows.some((r) => r.id === id && r.onDevice)).length} on Pocket</p><p class="hint">${!group.playlists.length ? 'Empty collections are hidden on the player.' : !state.device.connected ? 'Saved on this computer' : synced(group) ? 'Collection arrangement saved on Pocket' : 'Collection not yet synced to this Pocket'}</p></div><button class="text-button" data-group-up="${esc(group.id)}" aria-label="Move collection up" ${index === 0 ? 'disabled' : ''}>↑</button><button class="text-button" data-group-down="${esc(group.id)}" aria-label="Move collection down" ${index === groups.length - 1 ? 'disabled' : ''}>↓</button><button class="button" data-group-edit="${esc(group.id)}">Edit</button><button class="text-button danger" data-group-delete="${esc(group.id)}">Delete</button></article>`,
+              `<article class="collection-card" data-group-card="${esc(group.id)}"><span class="group-grip" draggable="true" data-group-grip="${esc(group.id)}" aria-label="Drag ${esc(group.title)}">⠿</span>${state.collectionPictures?.[group.id]?.thumbnail ? `<img class="collection-picture" src="${esc(state.collectionPictures[group.id].thumbnail)}" alt="${esc(group.title)}">` : centerGlyph()}<div class="collection-heading"><h3>${esc(group.title)}</h3><p>${group.playlists.length} audio item${group.playlists.length === 1 ? '' : 's'} · ${group.playlists.filter((id) => state.rows.some((r) => r.id === id && r.onDevice)).length} on Pocket</p></div><div class="collection-art">${collectionStackHTML(group, state, state.collectionPictures?.[group.id], esc)}<span>${esc(COLLECTION_LOOKS[collectionLook(group)])}</span></div><p class="collection-state hint">${!group.playlists.length ? 'Empty collections are hidden on the player.' : !state.device.connected ? 'Saved on this computer' : synced(group) ? 'Collection arrangement saved on Pocket' : 'Collection not yet synced to this Pocket'}</p><div class="collection-controls"><button class="text-button" data-group-up="${esc(group.id)}" aria-label="Move collection up" ${index === 0 || state.busy ? 'disabled' : ''}>↑</button><button class="text-button" data-group-down="${esc(group.id)}" aria-label="Move collection down" ${index === groups.length - 1 || state.busy ? 'disabled' : ''}>↓</button><button class="button" data-group-edit="${esc(group.id)}">Edit</button><button class="text-button danger" data-group-delete="${esc(group.id)}" ${state.busy ? 'disabled' : ''}>Delete</button></div></article>`,
           )
           .join('')
       : '<div class="empty"><h3>No collections yet</h3><p>Create a collection for a series, person, mood, or type of audio.</p></div>';
@@ -469,12 +482,14 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
         id: 'pd-' + crypto.randomUUID().slice(0, 20),
         title: '',
         icon: null,
+        display: 'recent',
         playlists: [],
       },
     );
     pictureDraft = getState().collectionPictures?.[groupDraft.id] ?? null;
     pictureChanged = false;
     picturePreview();
+    appearance.render();
     $('collection-name').value = groupDraft.title;
     $('collection-search').value = '';
     $('collection-dialog-title').textContent = group ? 'Edit collection' : 'New collection';
@@ -482,6 +497,7 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
     $('collection-dialog').showModal();
   }
   function renderMembers() {
+    appearance.render();
     const state = getState(),
       members = groupDraft.playlists,
       query = $('collection-search').value.toLowerCase(),
@@ -511,9 +527,19 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
       .forEach(
         (e) =>
           (e.onchange = () => {
-            groupDraft.playlists = e.checked
-              ? [...members, e.dataset.member]
-              : members.filter((id) => id !== e.dataset.member);
+            groupDraft = withCollectionMembers(
+              groupDraft,
+              e.checked
+                ? [...members, e.dataset.member]
+                : members.filter((id) => id !== e.dataset.member),
+            );
+            if (
+              e.checked &&
+              groupDraft.display === 'covers' &&
+              (groupDraft.covers?.length ?? 0) < 3 &&
+              getState().rows.some((r) => r.id === e.dataset.member && r.cover)
+            )
+              groupDraft.covers = [...(groupDraft.covers ?? []), e.dataset.member];
             renderMembers();
           }),
       );
@@ -561,16 +587,28 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
   $('collection-cancel').onclick = () => $('collection-dialog').close();
   $('collection-search').oninput = renderMembers;
   $('collection-save').onclick = guarded(async () => {
-    groupDraft.title = $('collection-name').value;
-    const picked = new Set(groupDraft.playlists),
-      groups = currentGroups()
-        .filter((g) => g.id !== groupDraft.id)
-        .map((g) => ({ ...g, playlists: g.playlists.filter((id) => !picked.has(id)) })),
-      index = currentGroups().findIndex((g) => g.id === groupDraft.id);
-    groups.splice(index < 0 ? groups.length : index, 0, groupDraft);
-    if (pictureChanged) groupDraft.icon = pictureDraft ? 'groups/' + groupDraft.id + '.png' : null;
-    await saveGroups(groups, pictureChanged ? { [groupDraft.id]: pictureDraft } : {});
-    $('collection-dialog').close();
+    if ($('collection-save').disabled) return;
+    $('collection-save').disabled = true;
+    try {
+      groupDraft.title = $('collection-name').value;
+      const picked = new Set(groupDraft.playlists),
+        groups = currentGroups()
+          .filter((g) => g.id !== groupDraft.id)
+          .map((g) =>
+            withCollectionMembers(
+              g,
+              g.playlists.filter((id) => !picked.has(id)),
+            ),
+          ),
+        index = currentGroups().findIndex((g) => g.id === groupDraft.id);
+      groups.splice(index < 0 ? groups.length : index, 0, groupDraft);
+      if (pictureChanged)
+        groupDraft.icon = pictureDraft ? 'groups/' + groupDraft.id + '.png' : null;
+      await saveGroups(groups, pictureChanged ? { [groupDraft.id]: pictureDraft } : {});
+      $('collection-dialog').close();
+    } finally {
+      $('collection-save').disabled = false;
+    }
   });
   $('collection-picture-change').onclick = guarded(async () => {
     const picture = await request('pickCollectionPicture');
@@ -578,12 +616,14 @@ export function installStudioUI({ api, esc, bytes, toast, getState, renderBooks 
       pictureDraft = picture;
       pictureChanged = true;
       picturePreview();
+      appearance.pictureChanged();
     }
   });
   $('collection-picture-clear').onclick = () => {
     pictureDraft = null;
     pictureChanged = true;
     picturePreview();
+    appearance.pictureChanged();
   };
   $('apply-collections').onclick = guarded(() => request('applyCollections'));
   $('import-collections').onclick = guarded(() => request('importCollections'));

@@ -68,6 +68,13 @@ try {
   };
   await page.addInitScript((state) => {
     window.state = state;
+    window.state.rows.forEach((row, index) => {
+      row.cover =
+        'data:image/svg+xml,' +
+        encodeURIComponent(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="252" height="400"><rect width="252" height="400" rx="16" fill="${index ? '#207a72' : '#6f389f'}"/><text x="28" y="90" fill="white" font-size="24">Audio ${index + 1}</text></svg>`,
+        );
+    });
     window.calls = [];
     window.doc = {
       id: 'session',
@@ -130,9 +137,18 @@ try {
         }
         if (method === 'saveCollections') {
           window.state.collections = args[0];
+          window.state.collectionPictures = { ...window.state.collectionPictures, ...args[1] };
           window.sendState(window.state);
           return args[0];
         }
+        if (method === 'pickCollectionPicture')
+          return {
+            ref: 'asset:sample.png',
+            iconRef: 'asset:icon.png',
+            imageRef: 'asset:portrait.png',
+            thumbnail: window.state.rows[0].cover,
+            cardThumbnail: window.state.rows[0].cover,
+          };
         if (method === 'checkUpdates')
           return {
             status: 'available',
@@ -231,10 +247,45 @@ try {
   await page.locator('[data-member=a-story]').check();
   await page.locator('[data-member=second]').check();
   await page.locator('[data-member-up=second]').click();
+  await page.locator('#collection-look').selectOption('covers');
+  assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 2);
+  await page.locator('[data-cover-up="1"]').click();
+  assert.equal(
+    await page.evaluate(
+      () =>
+        document.querySelector('#collection-card-preview img').getAttribute('src') ===
+        window.state.rows.find((r) => r.id === 'a-story').cover,
+    ),
+    true,
+  );
+  await page
+    .locator('#collection-card-preview img')
+    .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await page.screenshot({ path: '/tmp/pocket-collection-editor.png' });
   await page.locator('#collection-save').click();
   const groups = await page.evaluate(() => window.state.collections);
   assert.equal(groups[0].title, 'Bedtime');
   assert.deepEqual(groups[0].playlists, ['second', 'a-story']);
+  assert.equal(groups[0].display, 'covers');
+  assert.deepEqual(groups[0].covers, ['a-story', 'second']);
+  await page.locator('[data-group-edit]').first().click();
+  await page.locator('#collection-picture-change').click();
+  assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 3);
+  await page.locator('#collection-use-picture').uncheck();
+  assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 2);
+  await page.locator('#collection-look').selectOption('image');
+  assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 1);
+  await page.locator('#collection-save').click();
+  await page.locator('#new-collection').click();
+  await page.locator('#collection-name').fill('Music');
+  await page.locator('[data-member=second]').check();
+  await page.locator('#collection-save').click();
+  const moved = await page.evaluate(() => window.state.collections);
+  assert.deepEqual(moved[0].playlists, ['a-story']);
+  assert.deepEqual(moved[0].covers, ['a-story']);
+  assert.equal(moved[0].display, 'image');
+  assert.equal(moved[1].display, 'recent');
+  await page.screenshot({ path: '/tmp/pocket-collection-looks.png' });
   await page.screenshot({ path: 'release/Collections-440.png' });
   await page.locator('[data-page=books]').click();
   assert.equal(await page.locator('#books #prepare-audio,#collection-filter').count(), 0);

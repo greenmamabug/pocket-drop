@@ -14,9 +14,11 @@ import {
   validateLibraryIndex,
   validatePlaylistManifest,
   validateGroups,
+  validateRecent,
   checkPlaylistDir as checkPlaylistWith,
 } from '@studio-pocket/library-format';
 import { tree } from './archive.mjs';
+import { withCollectionMembers } from './collection-model.mjs';
 export const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export async function verifyMacVolume(volume, { expectedUUID } = {}) {
   const d = await onboardInfo({ volume, expectedUUID });
@@ -118,7 +120,11 @@ export class Device {
       try {
         groups = validateGroups(JSON.parse(await bounded(path.join(this.root, 'groups.json'))));
       } catch {}
-      const check = { index, playlists, groups, problems: [], syncLockPresent: false };
+      let recent = null;
+      try {
+        recent = validateRecent(JSON.parse(await bounded(path.join(this.root, 'recent.json'))));
+      } catch {}
+      const check = { index, playlists, groups, recent, problems: [], syncLockPresent: false };
       return {
         connected: true,
         initialized: !!info.marker,
@@ -143,6 +149,28 @@ export class Device {
     await noLinks(this.root);
     await ensureDeviceMarker(this.volume, 'Pocket Drop/4.0.0');
     return this.inspect();
+  }
+  async collectionArtwork(ref, guard) {
+    if (!/^groups\/[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(ref))
+      throw new Error('Invalid collection artwork path.');
+    guard ??= await this.pin();
+    await guard();
+    for (const [index, part] of [
+      path.join(this.root, 'groups'),
+      path.join(this.root, ref),
+    ].entries()) {
+      const stat = await fs.lstat(part).catch((error) => {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+      });
+      if (!stat) return null;
+      if (stat.isSymbolicLink()) throw new Error('Unsafe collection artwork on Pocket.');
+      if (index === 0 ? !stat.isDirectory() : !stat.isFile() || stat.size > 4 * 1024 ** 2)
+        throw new Error('Collection artwork is too large or unreadable.');
+    }
+    const bytes = await fs.readFile(path.join(this.root, ref));
+    await guard();
+    return bytes;
   }
   async pin() {
     await this.resolveVolume();
@@ -230,7 +258,12 @@ export class Device {
       assigned = new Set(groups.flatMap((g) => g.playlists));
     const retained = prior
       .filter((g) => !owned.has(g.id))
-      .map((g) => ({ ...g, playlists: g.playlists.filter((id) => !assigned.has(id)) }));
+      .map((g) =>
+        withCollectionMembers(
+          g,
+          g.playlists.filter((id) => !assigned.has(id)),
+        ),
+      );
     const data = validateGroups({
       format: 'studiopocket-groups',
       formatVersion: 1,
@@ -256,6 +289,7 @@ export class Device {
       part = file + '.' + randomUUID() + '.part';
     let locked = false;
     const iconParts = [];
+    const artworkRefs = new Set(data.groups.flatMap((g) => [g.icon, g.image].filter(Boolean)));
     try {
       await guard();
       await safe(lock);
@@ -271,15 +305,22 @@ export class Device {
       )
         throw new Error('Pocket collections changed. Refresh before applying your collections.');
       for (const [rel, source] of icons) {
-        if (!/^groups\/[a-z0-9-]+\.png$/.test(rel)) throw new Error('Invalid group icon path.');
+        if (!/^groups\/[a-z0-9-]+\.png$/.test(rel) || !artworkRefs.has(rel))
+          throw new Error('Invalid collection artwork path.');
         await guard();
         await safe(path.join(this.root, rel));
         await fs.mkdir(path.join(this.root, 'groups'), { recursive: true });
         const temp = path.join(this.root, rel) + '.' + randomUUID() + '.part';
         iconParts.push(temp);
-        await fs.writeFile(temp, await fs.readFile(source), { flag: 'wx' });
+        const sourceStat = await fs.lstat(source);
+        if (!sourceStat.isFile() || sourceStat.isSymbolicLink() || sourceStat.size > 1024 ** 2)
+          throw new Error('Unsafe collection artwork file.');
+        const bytes = await fs.readFile(source);
+        await fs.writeFile(temp, bytes, { flag: 'wx' });
         await guard();
         await fs.rename(temp, path.join(this.root, rel));
+        if (!bytes.equals(await fs.readFile(path.join(this.root, rel))))
+          throw new Error('Collection artwork did not verify after copying.');
       }
       await guard();
       await safe(part);

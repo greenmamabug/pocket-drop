@@ -344,6 +344,8 @@ export class Workspace {
     for (const group of groups) {
       const picture = this.catalog.data.collectionPictures?.[group.id];
       if (picture?.iconRef && group.icon) icons.set(group.icon, this.editor.asset(picture.iconRef));
+      if (picture?.imageRef && group.image)
+        icons.set(group.image, this.editor.asset(picture.imageRef));
     }
     await this.library.device.saveGroups(groups, {
       icons,

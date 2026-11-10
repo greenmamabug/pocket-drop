@@ -117,6 +117,7 @@ try {
   await page.locator('[data-member]').check();
   await page.locator('#collection-picture-change').click();
   await page.locator('#collection-picture-preview').waitFor({ state: 'visible' });
+  await page.locator('#collection-look').selectOption('image');
   assert.equal(
     await page
       .locator('#collection-picture-preview')
@@ -133,6 +134,14 @@ try {
     await fs.readFile(path.join(root, 'support', 'studio', 'catalog-v1.json'), 'utf8'),
   );
   assert.ok(Object.values(pictured.collectionPictures)[0].thumbnail.startsWith('data:image/png'));
+  assert.equal(pictured.groups[0].display, 'image');
+  assert.match(pictured.groups[0].image, /^groups\/.+-image-.+\.png$/);
+  const portrait = Object.values(pictured.collectionPictures)[0].imageRef.replace('asset:', '');
+  const portraitInfo = await sharp(
+    path.join(root, 'support', 'studio', 'artwork', portrait),
+  ).metadata();
+  assert.equal(portraitInfo.width, 252);
+  assert.equal(portraitInfo.height, 400);
   await page.locator('[data-page=books]').click();
   await page.locator('.audio-open').click();
   assert.equal(await page.locator('#editor-title').inputValue(), 'Edited desktop story');

@@ -21,6 +21,10 @@
       "playlists": [
         "broken",
         "songs"
+      ],
+      "display": "covers",
+      "covers": [
+        "songs"
       ]
     },
     {

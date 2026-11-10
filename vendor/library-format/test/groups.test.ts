@@ -35,6 +35,20 @@ describe('groups.json', () => {
         expect(() => validateGroups(groupsFile([group('a', [], { icon: 'groups/../a.png' })]))).toThrow(FormatError);
     });
 
+    it('keeps display, image and covers, and drops an unknown display', () => {
+        const g = validateGroups(groupsFile([group('a', ['p', 'q', 'r', 's'], { display: 'covers', image: 'groups/a-image.jpg', covers: ['q', 'p'] })])).groups[0]!;
+        expect(g).toMatchObject({ display: 'covers', image: 'groups/a-image.jpg', covers: ['q', 'p'] });
+        expect(validateGroups(groupsFile([group('a', [], { display: 'sparkles', image: null })])).groups[0]).toEqual({ id: 'a', title: 'a', icon: null, playlists: [], image: null });
+        expect(() => validateGroups(groupsFile([group('a', [], { image: 'images/a.jpg' })]))).toThrow(/groups\[0\]\.image: must be groups/);
+        expect(() => validateGroups(groupsFile([group('a', [], { display: 42 })]))).toThrow(/groups\[0\]\.display: display must be a string/);
+    });
+
+    it('checks covers against the group playlists', () => {
+        expect(() => validateGroups(groupsFile([group('a', ['p', 'q', 'r', 's'], { covers: ['p', 'q', 'r', 's'] })]))).toThrow(/covers must be an array \(max 3\)/);
+        expect(() => validateGroups(groupsFile([group('a', ['p'], { covers: ['p', 'p'] })]))).toThrow(/covers: playlist ids must be unique/);
+        expect(() => validateGroups(groupsFile([group('a', ['p'], { covers: ['x'] })]))).toThrow(/x is not in this group's playlists/);
+    });
+
     it('enforces the bounds', () => {
         expect(validateGroups(groupsFile(Array.from({ length: MAX_GROUPS }, (_, i) => group(`g-${i}`)))).groups).toHaveLength(MAX_GROUPS);
         expect(() => validateGroups(groupsFile(Array.from({ length: MAX_GROUPS + 1 }, (_, i) => group(`g-${i}`))))).toThrow(/max 30/);
@@ -84,6 +98,7 @@ describe('checkLibrary and groups', () => {
         const check = await checkLibrary(root);
         expect(check.problems).toEqual([]);
         expect(check.groups?.groups.map((g) => g.id)).toEqual(['g-bedtime', 'g-music', 'g-empty']);
+        expect(check.groups?.groups[1]).toMatchObject({ display: 'covers', covers: ['songs'] });
         expect(check.recent?.playlists).toEqual(['songs', 'gone-away', 'bedtime']);
     });
 
@@ -102,12 +117,12 @@ describe('checkLibrary and groups', () => {
             expect(check.problems[1]).toMatch(/^recent\.json: invalid JSON/);
             expect(check.playlists.filter((p) => p.ok).map((p) => p.id)).toEqual(['bedtime', 'songs']);
 
-            await writeFile(path.join(dir, GROUPS_FILE), JSON.stringify(groupsFile([group('a', ['songs'], { icon: `${GROUPS_DIR}/a.png` })])));
+            await writeFile(path.join(dir, GROUPS_FILE), JSON.stringify(groupsFile([group('a', ['songs'], { icon: `${GROUPS_DIR}/a.png`, display: 'image', image: `${GROUPS_DIR}/a-image.jpg` })])));
             await rm(path.join(dir, RECENT_FILE));
             const missingIcon = await checkLibrary(dir);
             expect(missingIcon.groups?.groups[0]!.id).toBe('a');
             expect(missingIcon.recent).toBeNull();
-            expect(missingIcon.problems).toEqual(['missing group icon groups/a.png (non-fatal)']);
+            expect(missingIcon.problems).toEqual(['missing group icon groups/a.png (non-fatal)', 'missing group picture groups/a-image.jpg (non-fatal)']);
         } finally {
             await rm(dir, { recursive: true, force: true });
         }

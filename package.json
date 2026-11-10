@@ -1,6 +1,6 @@
 {
   "name": "pocket-drop",
-  "version": "4.6.1",
+  "version": "4.7.0",
   "description": "Audio library, track editing, collections and USB sync for Studio Pocket",
   "author": "Lindsey Schultz and Pocket Drop contributors",
   "license": "GPL-3.0-only",
@@ -26,7 +26,8 @@
     "test:ui": "node scripts/ui-check.mjs && node scripts/studio-ui-check.mjs",
     "test:desktop": "node scripts/desktop-check.mjs && node scripts/studio-desktop-check.mjs",
     "lint": "eslint app ui scripts test",
-    "test:player-engine": "vitest run --root vendor/firmware-tools --maxWorkers=2 --no-file-parallelism"
+    "test:player-engine": "vitest run --root vendor/firmware-tools --maxWorkers=2 --no-file-parallelism",
+    "test:library-format": "vitest run --root vendor/library-format --maxWorkers=2 --no-file-parallelism"
   },
   "dependencies": {
     "@studio-pocket/library-format": "*",

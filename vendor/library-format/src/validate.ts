@@ -4,8 +4,8 @@
 // commercial licence from Ashworth Digital Ltd (see COPYING.commercial).
 
 import {
-    DEVICE_FORMAT, FORMAT_VERSION, GROUPS_DIR, GROUPS_FORMAT, LIBRARY_FORMAT, MAX_GROUPS, MAX_GROUP_TITLE, MAX_ICON_REF, MAX_RECENT, PLAYLIST_FORMAT, RECENT_FORMAT, RESERVED_GROUP_IDS, STATE_FORMAT,
-    type DeviceMarker, type GroupsFile, type LibraryIndex, type LibraryIndexEntry, type PlaybackState, type PlaylistGroup, type PlaylistManifest, type RecentFile, type TrackEntry,
+    DEVICE_FORMAT, FORMAT_VERSION, GROUP_DISPLAYS, GROUPS_DIR, GROUPS_FORMAT, LIBRARY_FORMAT, MAX_GROUPS, MAX_GROUP_COVERS, MAX_GROUP_TITLE, MAX_ICON_REF, MAX_RECENT, PLAYLIST_FORMAT, RECENT_FORMAT, RESERVED_GROUP_IDS, STATE_FORMAT,
+    type DeviceMarker, type GroupDisplay, type GroupsFile, type LibraryIndex, type LibraryIndexEntry, type PlaybackState, type PlaylistGroup, type PlaylistManifest, type RecentFile, type TrackEntry,
 } from './types.js';
 
 /**
@@ -165,6 +165,18 @@ export function validateGroup(value: unknown, path = 'group'): PlaylistGroup {
         playlists: idList(o, 'playlists', path),
     };
     if (o.iconRef !== undefined) group.iconRef = str(o, 'iconRef', path, MAX_ICON_REF);
+    if (o.display !== undefined) {
+        if (typeof o.display !== 'string') throw new FormatError('display must be a string', `${path}.display`);
+        // An unknown look is dropped (= icon), so a file from a newer writer still reads.
+        if ((GROUP_DISPLAYS as readonly string[]).includes(o.display)) group.display = o.display as GroupDisplay;
+    }
+    if (o.image !== undefined) group.image = o.image === null ? null : relFile(o, 'image', path, GROUPS_DIR);
+    if (o.covers !== undefined) {
+        const covers = idList(o, 'covers', path, MAX_GROUP_COVERS);
+        const missing = covers.find((c) => !group.playlists.includes(c));
+        if (missing !== undefined) throw new FormatError(`${missing} is not in this group's playlists`, `${path}.covers`);
+        group.covers = covers;
+    }
     return group;
 }
 

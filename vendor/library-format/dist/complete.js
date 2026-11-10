@@ -62,9 +62,11 @@ export async function checkLibrary(fs, root, options = {}) {
         playlists.push(await checkPlaylistDir(fs, fs.join(root, ...entry.dir.split('/')), entry, options));
     }
     const groups = await readOptional(fs, root, GROUPS_FILE, validateGroups, problems);
-    for (const icon of groups?.groups.map((g) => g.icon) ?? []) {
-        if (icon && !(await fs.stat(fs.join(root, ...icon.split('/')))).exists)
-            problems.push(`missing group icon ${icon} (non-fatal)`);
+    for (const g of groups?.groups ?? []) {
+        for (const [kind, file] of [['icon', g.icon], ['picture', g.image ?? null]]) {
+            if (file && !(await fs.stat(fs.join(root, ...file.split('/')))).exists)
+                problems.push(`missing group ${kind} ${file} (non-fatal)`);
+        }
     }
     const recent = await readOptional(fs, root, RECENT_FILE, validateRecent, problems);
     return { index, syncLockPresent: (await fs.stat(fs.join(root, SYNC_LOCK_FILE))).exists, playlists, groups, recent, problems };

@@ -42,6 +42,10 @@ export const RECENT_FILE = 'recent.json';
 export const MAX_GROUPS = 30;
 export const MAX_GROUP_TITLE = 40;
 export const MAX_ICON_REF = 100;
+/** How a user group's tile looks on the player (added 2026-11, still format version 1). */
+export const GROUP_DISPLAYS = ['icon', 'image', 'covers', 'recent'];
+/** At most this many chosen covers per group (first = top card). */
+export const MAX_GROUP_COVERS = 3;
 /** The player's system groups; a user group can never take these ids. */
 export const RESERVED_GROUP_IDS = ['recent', 'all'];
 /** The player keeps this many entries in recent.json and shows this many in Recent. */

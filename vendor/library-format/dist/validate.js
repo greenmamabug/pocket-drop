@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Ashworth Digital Ltd
 // This file is part of Studio Pocket. It is licensed under GPL-3.0-only, or under a
 // commercial licence from Ashworth Digital Ltd (see COPYING.commercial).
-import { DEVICE_FORMAT, FORMAT_VERSION, GROUPS_DIR, GROUPS_FORMAT, LIBRARY_FORMAT, MAX_GROUPS, MAX_GROUP_TITLE, MAX_ICON_REF, MAX_RECENT, PLAYLIST_FORMAT, RECENT_FORMAT, RESERVED_GROUP_IDS, STATE_FORMAT, } from './types.js';
+import { DEVICE_FORMAT, FORMAT_VERSION, GROUP_DISPLAYS, GROUPS_DIR, GROUPS_FORMAT, LIBRARY_FORMAT, MAX_GROUPS, MAX_GROUP_COVERS, MAX_GROUP_TITLE, MAX_ICON_REF, MAX_RECENT, PLAYLIST_FORMAT, RECENT_FORMAT, RESERVED_GROUP_IDS, STATE_FORMAT, } from './types.js';
 /**
  * Hand-written validators (no schema library) so the same rules can be mirrored one-to-one
  * in the Kotlin parser. Every rule here has a counterpart in apps/player LibraryParser.
@@ -178,6 +178,22 @@ export function validateGroup(value, path = 'group') {
     };
     if (o.iconRef !== undefined)
         group.iconRef = str(o, 'iconRef', path, MAX_ICON_REF);
+    if (o.display !== undefined) {
+        if (typeof o.display !== 'string')
+            throw new FormatError('display must be a string', `${path}.display`);
+        // An unknown look is dropped (= icon), so a file from a newer writer still reads.
+        if (GROUP_DISPLAYS.includes(o.display))
+            group.display = o.display;
+    }
+    if (o.image !== undefined)
+        group.image = o.image === null ? null : relFile(o, 'image', path, GROUPS_DIR);
+    if (o.covers !== undefined) {
+        const covers = idList(o, 'covers', path, MAX_GROUP_COVERS);
+        const missing = covers.find((c) => !group.playlists.includes(c));
+        if (missing !== undefined)
+            throw new FormatError(`${missing} is not in this group's playlists`, `${path}.covers`);
+        group.covers = covers;
+    }
     return group;
 }
 /** groups.json: at most MAX_GROUPS groups, unique ids, and a playlist in at most one group. */

@@ -8,8 +8,8 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.6.1](https://github.com/greenmamabug/pocket-drop/releases/download/v4.6.1/Pocket-Drop-4.6.1-mac-x64.zip).
-- **Apple Silicon (M-series):** [Download Pocket Drop 4.6.1](https://github.com/greenmamabug/pocket-drop/releases/download/v4.6.1/Pocket-Drop-4.6.1-mac-arm64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-x64.zip).
+- **Apple Silicon (M-series):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 
 Both require macOS Monterey 12 or later and contain the same app features. Quit the old app, unzip the download, and drag **Pocket Drop.app** into Applications. Replace the old app there; your Inbox and saved library edits are stored separately. Source ZIPs are optional for ordinary use.
@@ -51,6 +51,10 @@ For extracted folders only, **Move excluded originals to Trash** is a separate c
 ## Collections
 
 The Collections area arranges items into player-compatible groups. Create, rename, reorder or delete collections and order their members. Each audio item belongs to one player collection. You can create up to 30 collections with names up to 40 characters.
+
+Choose **Icon**, **Picture**, **Chosen covers**, or **Recent covers** in the collection editor. Chosen covers lets you select and order up to three member covers; Recent covers follows the player's listening order, then collection order. A collection picture can take the top position in either stack. Live previews use local library artwork and the last connected Pocket's recent list; hover or focus a collection to fan its cards out. Your circular collection picture stays in Pocket Drop, while the player receives a separate portrait picture at 252×400. Older circular pictures gain a portrait version when requested. Sync verifies copied artwork before publishing the new collection metadata.
+
+The new looks require Studio Pocket **0.7.0+** on the Y2; older players keep the icon view. Use Settings → Player software for the existing-installation update wizard. Reading new collections from Pocket preserves their appearance settings and imports their available pictures. Local collections take precedence during merging. Moving an item out of a collection removes it from that collection's chosen covers as well.
 
 Use **Read from Pocket** to bring existing groups into this app. Local membership takes precedence when merging imports. **Sync Collections** confirms the change and writes the open-source groups format atomically. It preserves other groups and listening history. Items assigned here move out of other player groups; missing or edited member audio is synced before the collection arrangement. Choose a custom collection picture, displayed in a circular frame. Group display depends on player software that supports groups. Collection deletion keeps audio in the library and on the player; sync collections to update the player's group list.
 

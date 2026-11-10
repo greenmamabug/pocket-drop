@@ -9,6 +9,9 @@ import { checkUpdate } from './updates.mjs';
 import { revision, text } from './catalog.mjs';
 import { fingerprint } from './archive.mjs';
 import { dimensions } from './artwork.mjs';
+import { makeCollectionPicture, checkedCollectionPicture } from './collection-artwork.mjs';
+import { withCollectionMembers } from './collection-model.mjs';
+import { validateGroups } from '@studio-pocket/library-format';
 export const DOWNLOADS = 'https://github.com/greenmamabug/pocket-drop/releases';
 
 export async function installStudio({
@@ -41,6 +44,7 @@ export async function installStudio({
       notification.show();
     }
   };
+  const collectionArt = { nativeImage, editor: null, folder: catalog.folder };
   const renderCover = async (ref, edits) => {
     const source = workspace.editor.asset(ref),
       image = nativeImage.createFromPath(source);
@@ -79,6 +83,7 @@ export async function installStudio({
     return file;
   };
   const workspace = new Workspace(library, catalog, { renderCover, notify });
+  collectionArt.editor = workspace.editor;
   protocol.handle('pocket-media', async (request) => {
     try {
       const url = new URL(request.url);
@@ -212,34 +217,27 @@ export async function installStudio({
       size = dimensions(bytes);
     if (!size || size.width * size.height > 50_000_000)
       throw new Error('Choose a PNG, JPEG or WebP image with fewer than 50 million pixels.');
-    const image = nativeImage.createFromBuffer(bytes);
-    if (image.isEmpty()) throw new Error('This image cannot be read.');
-    const bounds = image.getSize(),
-      side = Math.min(bounds.width, bounds.height),
-      square = image
-        .crop({
-          x: Math.floor((bounds.width - side) / 2),
-          y: Math.floor((bounds.height - side) / 2),
-          width: side,
-          height: side,
-        })
-        .resize({ width: 256, height: 256, quality: 'best' });
-    const ref = 'asset:' + randomUUID() + '.png',
-      iconRef = 'asset:' + randomUUID() + '.png';
-    await fs.mkdir(path.join(catalog.folder, 'artwork'), { recursive: true });
-    await fs.writeFile(workspace.editor.asset(ref), square.toPNG());
-    await fs.writeFile(
-      workspace.editor.asset(iconRef),
-      square.resize({ width: 16, height: 16, quality: 'best' }).toPNG(),
-    );
-    return {
-      ref,
-      iconRef,
-      thumbnail: square.resize({ width: 128, height: 128, quality: 'best' }).toDataURL(),
-    };
+    return makeCollectionPicture(collectionArt, bytes);
+  });
+  const picturePaths = (group, picture) => ({
+    ...group,
+    icon: picture ? `groups/${group.id}-${revision(picture.iconRef).slice(0, 10)}.png` : group.icon,
+    image:
+      picture?.imageRef && group.image
+        ? `groups/${group.id}-image-${revision(picture.imageRef).slice(0, 10)}.png`
+        : (group.image ?? null),
   });
   handle('saveCollections', async (groups, changes = {}) => {
     idle();
+    groups = validateGroups({
+      format: 'studiopocket-groups',
+      formatVersion: 1,
+      updatedAt: new Date().toISOString(),
+      generator: 'Pocket Drop',
+      groups,
+    }).groups;
+    if (!changes || typeof changes !== 'object' || Array.isArray(changes))
+      throw new Error('Invalid collection picture changes.');
     const pictures = { ...(catalog.data.collectionPictures ?? {}) };
     for (const [id, picture] of Object.entries(changes)) {
       if (!groups.some((g) => g.id === id)) throw new Error('Unknown collection picture.');
@@ -247,42 +245,61 @@ export async function installStudio({
         delete pictures[id];
         continue;
       }
-      for (const ref of [picture.ref, picture.iconRef]) {
-        const file = workspace.editor.asset(ref),
-          st = await fs.lstat(file);
-        if (!st.isFile() || st.isSymbolicLink() || st.size > 1024 ** 2)
-          throw new Error('Choose a collection picture using Change picture.');
-      }
-      const image = nativeImage.createFromPath(workspace.editor.asset(picture.ref));
-      pictures[id] = {
-        ref: picture.ref,
-        iconRef: picture.iconRef,
-        thumbnail: image.resize({ width: 128, height: 128, quality: 'best' }).toDataURL(),
-      };
+      pictures[id] = await checkedCollectionPicture(collectionArt, picture, { needCard: true });
     }
-    groups = groups.map((g) => ({
-      ...g,
-      icon: pictures[g.id] ? 'groups/' + g.id + '.png' : g.icon,
-    }));
+    // Lazily add portrait cards for existing circular pictures when requested.
+    for (const group of groups) {
+      const picture = pictures[group.id];
+      if (picture && group.image && !picture.imageRef)
+        pictures[group.id] = await checkedCollectionPicture(collectionArt, picture, {
+          needCard: true,
+        });
+    }
+    groups = groups.map((g) => picturePaths(g, pictures[g.id]));
     await catalog.groups(groups, pictures);
     library.publish();
     return catalog.data.groups;
   });
   handle('importCollections', async () => {
     idle();
-    const groups = library.deviceState.check?.groups?.groups;
-    if (!groups) throw new Error('No readable collections were found on Pocket.');
-    const existing = catalog.data.groups;
-    const assigned = new Set(existing.flatMap((g) => g.playlists));
-    const merged = [
-      ...existing,
-      ...groups
-        .filter((g) => !existing.some((e) => e.id === g.id))
-        .map((g) => ({ ...g, playlists: g.playlists.filter((id) => !assigned.has(id)) })),
-    ];
-    await catalog.groups(merged);
+    workspace.requireNoPreparation();
+    library.busy = true;
+    library.operation = 'collections-read';
     library.publish();
-    return merged;
+    try {
+      const groups = library.deviceState.check?.groups?.groups;
+      if (!groups) throw new Error('No readable collections were found on Pocket.');
+      const existing = catalog.data.groups;
+      const assigned = new Set(existing.flatMap((g) => g.playlists));
+      const added = groups
+        .filter((g) => !existing.some((e) => e.id === g.id))
+        .map((g) =>
+          withCollectionMembers(
+            g,
+            g.playlists.filter((id) => !assigned.has(id)),
+          ),
+        );
+      const pictures = { ...(catalog.data.collectionPictures ?? {}) };
+      const guard = await library.device.pin();
+      for (const group of added) {
+        const image = group.image
+          ? await library.device.collectionArtwork(group.image, guard)
+          : null;
+        const icon = group.icon ? await library.device.collectionArtwork(group.icon, guard) : null;
+        if (!image) group.image = null;
+        if (image || icon)
+          pictures[group.id] = await makeCollectionPicture(collectionArt, image ?? icon, icon);
+      }
+      await guard();
+      const merged = [...existing, ...added.map((g) => picturePaths(g, pictures[g.id]))];
+      await catalog.groups(merged, pictures);
+      library.publish();
+      return catalog.data.groups;
+    } finally {
+      library.busy = false;
+      library.operation = null;
+      library.publish();
+    }
   });
   handle('applyCollections', async () => {
     idle();

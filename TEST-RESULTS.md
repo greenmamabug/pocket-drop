@@ -166,3 +166,21 @@ suite, and checks actual Mac tool version/capability probes on Intel and Apple
 Silicon. Those probes do not open a player or flash anything. No physical Y2
 update, interruption or restore was performed in this environment. See
 `docs/PLAYER-UPDATES.md` and upstream's tested-hardware notes for the limits.
+
+## 4.7.0 collection looks
+
+120 application tests and 24 upstream library-format tests pass. New tests cover
+legacy compatibility, all four display modes, picture/cover stack order and
+fallbacks, cover pruning after member moves, appearance-aware pending-sync state,
+catalog reload, copied portrait artwork, preserved recent history, unsafe artwork
+reads and metadata preservation after a failed image readback.
+
+Both browser check scripts pass. The collection editor checks cover ordering,
+optional picture-on-top, Picture mode, default Recent covers, moving an item out
+of another collection and the corresponding cover pruning. Native Electron and
+packaged-ASAR editor checks pass; generated collection artwork is 252×400 while
+circular previews retain their round frame. Formatting/lint/syntax checks pass.
+Release CI repeats Mac checks and the existing upstream firmware-tool suite.
+Physical collection display on a Y2 is not exercised by these automated tests;
+the serialized fields follow the public 0.7.0 player format, and older players
+retain their icon fallback.

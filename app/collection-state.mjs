@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { createHash } from 'node:crypto';
-const canonical = (groups) =>
-  groups.map((g) => ({ id: g.id, title: g.title, icon: g.icon ?? null, playlists: g.playlists }));
+import { collectionAppearance } from './collection-model.mjs';
+const canonical = (groups) => groups.map(collectionAppearance);
 export function collectionRevision(data) {
   const groups = canonical(data.groups ?? []),
     pictures = groups.map((g) => [
       g.id,
       data.collectionPictures?.[g.id]?.ref ?? null,
       data.collectionPictures?.[g.id]?.iconRef ?? null,
+      data.collectionPictures?.[g.id]?.imageRef ?? null,
     ]);
   return createHash('sha256').update(JSON.stringify({ groups, pictures })).digest('hex');
 }
@@ -18,6 +19,8 @@ export function collectionsPending(device, data) {
     actual = (device.check?.groups?.groups ?? []).filter((g) => owned.has(g.id));
   if (JSON.stringify(canonical(actual)) !== JSON.stringify(canonical(wanted))) return true;
   const saved = data.collectionsSynced?.[device.deviceId],
-    hasPictures = wanted.some((g) => data.collectionPictures?.[g.id]?.iconRef);
+    hasPictures = wanted.some(
+      (g) => data.collectionPictures?.[g.id]?.iconRef || data.collectionPictures?.[g.id]?.imageRef,
+    );
   return (hasPictures || saved !== undefined) && saved !== collectionRevision(data);
 }

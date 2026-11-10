@@ -3749,3 +3749,181 @@ svg,
 .player-update-step details {
   margin-bottom: 16px;
 }
+
+/* Collection looks mirror the open player format while keeping the app's round avatars. */
+.collection-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+.collection-card {
+  display: grid;
+  grid-template-columns: 22px 48px minmax(0, 1fr);
+  gap: 12px;
+  padding: 18px;
+}
+.collection-card > .collection-picture {
+  width: 46px;
+  height: 46px;
+}
+.collection-card .collection-heading {
+  min-width: 0;
+}
+.collection-card h3 {
+  font-size: 1.2em;
+  overflow-wrap: anywhere;
+}
+.collection-card p {
+  font-size: 1em;
+}
+.collection-art {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px 12px;
+  border-radius: 12px;
+  background: #f7f3fb;
+  color: #755285;
+}
+.collection-state,
+.collection-controls {
+  grid-column: 1 / -1;
+}
+.collection-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.collection-controls [data-group-edit] {
+  margin-left: auto;
+}
+.cover-stack {
+  display: inline-block;
+  position: relative;
+  width: 140px;
+  height: 164px;
+  flex: none;
+}
+.stack-card {
+  position: absolute;
+  left: 18px;
+  top: 6px;
+  width: 94px;
+  aspect-ratio: 63 / 100;
+  border: 1px solid #d8c7e8;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 12px #3d1d5424;
+  overflow: hidden;
+  transform: translate(calc(var(--card-index) * 7px), calc(var(--card-index) * -2px))
+    rotate(calc(var(--card-index) * 4deg));
+  transform-origin: center 85%;
+  transition: transform 200ms ease;
+}
+.stack-card > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.stack-card.icon-card {
+  display: grid;
+  place-items: center;
+  background: #fffaff;
+}
+.stack-card > .stack-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+}
+.stack-glyph {
+  color: #8a4db7;
+  font-size: 36px;
+}
+.collection-card:hover .stack-card,
+.collection-card:focus-within .stack-card,
+.collection-live-preview:hover .stack-card {
+  transform: translateX(calc(var(--card-index) * 16px))
+    rotate(calc((var(--card-index) - (var(--card-count) - 1) / 2) * 10deg));
+}
+.collection-editor {
+  width: min(760px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+.collection-design {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 20px;
+  margin: 20px 0;
+}
+.collection-live-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f7f3fb;
+  border-radius: 12px;
+  padding: 12px;
+}
+.collection-design-controls {
+  min-width: 0;
+}
+.collection-design-controls select,
+.collection-cover-choices select {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  padding: 8px;
+  border: 1px solid #d9cce4;
+  border-radius: 8px;
+  background: white;
+  color: inherit;
+}
+.collection-design-controls .collection-picture-controls {
+  flex-wrap: wrap;
+}
+.collection-design-controls .collection-picture-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.collection-cover-choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.collection-editor .dialog-actions {
+  position: sticky;
+  bottom: -24px;
+  background: #fff;
+  padding: 14px 0;
+  border-top: 1px solid #e8dfee;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stack-card {
+    transition: none;
+  }
+}
+.cover-choice {
+  min-width: 0;
+}
+.cover-choice > span {
+  display: flex;
+  justify-content: flex-end;
+}
+.collection-help {
+  margin: 12px 0 4px;
+  color: #745f80;
+}
+.collection-help summary {
+  cursor: pointer;
+}
+.collection-help p {
+  line-height: 1.5;
+  max-width: 800px;
+}

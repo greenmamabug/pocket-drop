@@ -257,22 +257,23 @@
         </section>
         <section id="collections" class="page">
           <div class="collection-intro">
-            <p>
-              Arrange audio into collections on your computer and Pocket. Each item can belong to
-              one collection.
-            </p>
+            <p>One collection per audio item. Drag cards to rearrange them.</p>
             <div class="inline-buttons">
               <button class="button primary" id="new-collection">New collection</button
               ><button class="button" id="import-collections">Read from Pocket</button
               ><button class="button primary" id="apply-collections">Sync Collections</button>
             </div>
-            <p class="hint">
-              Create up to 30 collections. Drag collections to change their order. Sync in Audio
-              Library includes collection changes automatically. Sync Collections here also adds any
-              missing member audio. After Sync Collections finishes, eject Pocket and leave
-              USB-storage mode to see the changes. The player must support collections; empty
-              collections are hidden.
-            </p>
+            <p class="hint">Picture cards and cover stacks need Studio Pocket 0.7.0 or later.</p>
+            <details class="collection-help">
+              <summary>Sync and preview help</summary>
+              <p>
+                Create up to 30 collections. Sync in Audio Library includes your collection changes.
+                Sync Collections here also adds missing member audio. Eject Pocket and leave
+                USB-storage mode to load the changes. Older players use the collection icon; empty
+                collections are hidden. Previews use your library artwork and the last connected
+                Pocket’s recent list.
+              </p>
+            </details>
           </div>
           <p class="hint" id="collection-sync-status" role="status"></p>
           <div id="collection-cards" class="collection-cards"></div>

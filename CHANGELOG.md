@@ -1,3 +1,12 @@
+# 4.7.0 — collection looks
+
+- Add Icon, Picture, Chosen covers and Recent covers using Studio Pocket’s public v0.7.0 library format.
+- Show live portrait/stack previews; fan cards on hover or keyboard focus while retaining circular collection avatars.
+- Choose and reorder up to three member covers, optionally placing a collection picture on top. Prune cover choices when membership changes.
+- Keep separate 16px fallback icons and 252×400 portrait artwork, lazily upgrading older circular pictures.
+- Preserve and import collection appearance/images; compare all appearance settings for pending sync and verify copied artwork before metadata commit.
+- Read bounded player-owned recent metadata for previews without rewriting listening history. Older players retain the icon fallback.
+
 # 4.6.1
 
 - Size the final verification-space check against the actual prepared image plus a reserve; do not require another 6 GB after the backup/preparation has used disk space.

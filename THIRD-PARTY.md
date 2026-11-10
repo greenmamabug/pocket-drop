@@ -7,12 +7,16 @@ Pocket Drop is distributed under **GPL-3.0-only**, consistent with its use of St
 - Copyright (C) 2026 Ashworth Digital Ltd.
 - Repository: https://github.com/MYO-Studio/studio-pocket
 - Pinned revision: `c7e6f377762d25faffa63f32d0df1a688256c9f0` (retrieved 2026-11-06).
-- Vendored packages: `packages/library-format`, `packages/sync-engine`.
+- The sync-engine remains pinned to this revision. Library-format was updated to v0.7.0 as noted below.
 - Upstream source is preserved in `vendor/`. Only the sync-engine workspace dependency specifier in package.json is adjusted from `workspace:*` to `*` for npm workspaces. Runtime source is unchanged.
 - Licence: GPL-3.0-only, or a separate commercial licence from Ashworth Digital Ltd. COPYING.commercial is included where supplied upstream. This distribution uses the GPL option.
 - The sync/library packages above remain pinned to that revision. Player updating uses the separate firmware-tools pin below.
 
 Pocket Drop's adapter adds safe ZIP access, Chrome archive metadata synthesis, artwork hash comparison, local discovery, USB-volume/identity checks, and a graphical UI. Planning, transfers, removal, state cleanup, and library index writes use the upstream engine.
+
+## Library-format and collection looks (4.7.0)
+
+`vendor/library-format/src` now matches the public v0.7.0 source at `06f11b08ff4a10c9ab4d38ea4000869090298174`, with the matching group tests/fixtures. Its GPL licence and upstream notices are retained. The source changes are the optional `display`, `image` and `covers` fields and non-fatal missing-picture checks. Format version remains 1. Pocket Drop's collection editor, circular avatars, card-stack previews, artwork normalization and sync adapters are its own implementation of the documented public format. No proprietary desktop interface code is used.
 
 ## Studio Pocket player updater (4.6.1)
 
