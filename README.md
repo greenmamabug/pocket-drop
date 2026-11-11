@@ -8,7 +8,7 @@ Pocket Drop by **Lindsey Schultz**, built with Studio Pocket's open-source sync 
 
 Choose the app for Apple menu → About This Mac:
 
-- **Intel Mac:** [Download Pocket Drop 4.8.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.8.0/Pocket-Drop-4.8.0-mac-x64.zip).
+- **Intel Mac:** [Download Pocket Drop 4.8.1](https://github.com/greenmamabug/pocket-drop/releases/download/v4.8.1/Pocket-Drop-4.8.1-mac-x64.zip).
 - **Apple Silicon (M-series, previous release):** [Download Pocket Drop 4.7.0](https://github.com/greenmamabug/pocket-drop/releases/download/v4.7.0/Pocket-Drop-4.7.0-mac-arm64.zip).
 - [All releases and source downloads](https://github.com/greenmamabug/pocket-drop/releases).
 

@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
-import { collectionLook, collectionPreview } from '../app/collection-model.mjs';
+import {
+  collectionLook,
+  collectionPreview,
+  collectionCoverLabels,
+} from '../app/collection-model.mjs';
 
 export function collectionStackHTML(group, state, picture, esc) {
   const cards = collectionPreview(
@@ -44,12 +48,13 @@ export function installCollectionAppearance({ getDraft, getPicture, getState, es
       look === 'recent'
         ? 'Recent covers follow listening order on Pocket. This preview uses the last connected player’s recent list, then collection order.'
         : look === 'covers'
-          ? 'Choose up to three covers: front, left, then right. Hover over Pocket preview to fan them out. An included collection picture takes the front position; the remaining covers shift back.'
+          ? 'Two cards: front and right. Three cards: front, left, then right. Hover over Pocket preview to fan them out. A collection picture takes the front position, leaving room for two covers.'
           : look === 'image'
             ? 'The picture fills a portrait card on Pocket. Choose a picture below; the icon is used if none is available.'
             : 'A single card with the collection’s icon. Older players also use this icon.';
     $('collection-cover-choices').hidden = look !== 'covers';
-    const covers = group.covers ?? [];
+    const covers = group.covers ?? [],
+      labels = collectionCoverLabels(group, state.rows, picture);
     const choices = group.playlists.map((id) => ({
       id,
       row: state.rows.find((r) => r.id === id && !r.hidden),
@@ -57,7 +62,7 @@ export function installCollectionAppearance({ getDraft, getPicture, getState, es
     $('collection-cover-choices').innerHTML = Array.from(
       { length: 3 },
       (_, index) =>
-        `<div class="cover-choice"><label>${(group.image && picture ? ['Second cover (left)', 'Third cover (right)', 'Extra cover (hidden by picture)'] : ['First cover (front)', 'Second cover (left)', 'Third cover (right)'])[index]}<select data-cover-slot="${index}"><option value="">No cover</option>${choices
+        `<div class="cover-choice"><label>${labels[index]}<select data-cover-slot="${index}"><option value="">No cover</option>${choices
           .filter(({ id, row }) => row?.cover || covers.includes(id))
           .map(
             ({ id, row }) =>

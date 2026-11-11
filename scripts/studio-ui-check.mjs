@@ -319,11 +319,11 @@ try {
   );
   assert.match(
     await page.locator('[data-cover-slot="1"]').locator('..').innerText(),
-    /Second cover \(left\)/,
+    /Second cover \(right\)/,
   );
   assert.match(
     await page.locator('[data-cover-slot="2"]').locator('..').innerText(),
-    /Third cover \(right\)/,
+    /Third cover \(right when added\)/,
   );
   assert.equal(await page.locator('#collection-card-preview [style]').count(), 0);
   const card = page.locator('#collection-card-preview .stack-card').nth(1);
@@ -335,7 +335,7 @@ try {
         getComputedStyle(
           document.querySelector('#collection-card-preview .stack-card:nth-child(2)'),
         ).transform,
-      ).m41 < -20,
+      ).m41 > 12,
   );
   assert.notEqual(await card.evaluate((node) => getComputedStyle(node).transform), closedTransform);
   await page.locator('.collection-live-preview').focus();
@@ -360,7 +360,7 @@ try {
         getComputedStyle(
           document.querySelector('.collection-card .cover-trio .stack-card:nth-child(2)'),
         ).transform,
-      ).m41 < -20,
+      ).m41 > 12,
   );
   const groups = await page.evaluate(() => window.state.collections);
   assert.equal(groups[0].title, 'Bedtime');
@@ -378,8 +378,37 @@ try {
     await page.locator('[data-cover-slot="1"]').locator('..').innerText(),
     /Third cover \(right\)/,
   );
+  await page.locator('.collection-live-preview').hover();
+  await page.waitForFunction(() => {
+    const cards = document.querySelectorAll('#collection-card-preview .stack-card');
+    return (
+      new DOMMatrix(getComputedStyle(cards[1]).transform).m41 < -12 &&
+      new DOMMatrix(getComputedStyle(cards[2]).transform).m41 > 12
+    );
+  });
+  assert.equal(
+    await page.locator('.collection-live-preview').evaluate((preview) => {
+      const bounds = preview.getBoundingClientRect();
+      return [...preview.querySelectorAll('.stack-card')].every((card) => {
+        const rect = card.getBoundingClientRect();
+        return rect.left >= bounds.left && rect.right <= bounds.right;
+      });
+    }),
+    true,
+  );
+  await page.screenshot({ path: '/tmp/pocket-trio-481.png' });
   await page.locator('#collection-use-picture').uncheck();
   assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 2);
+  assert.match(
+    await page.locator('[data-cover-slot="1"]').locator('..').innerText(),
+    /Second cover \(right\)/,
+  );
+  await page.locator('.collection-live-preview').hover();
+  await page.waitForFunction(() => {
+    const card = document.querySelector('#collection-card-preview .stack-card:nth-child(2)');
+    return new DOMMatrix(getComputedStyle(card).transform).m41 > 12;
+  });
+  await page.screenshot({ path: '/tmp/pocket-two-covers-481.png' });
   await page.locator('#collection-look').selectOption('image');
   assert.equal(await page.locator('#collection-card-preview .stack-card').count(), 1);
   await page.locator('#collection-save').click();

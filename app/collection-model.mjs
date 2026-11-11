@@ -53,7 +53,27 @@ export function collectionPreview(group, rows, picture, recent = []) {
     if (!group.playlists.includes(id)) continue;
     const matches = rows.filter((r) => r.id === id && !r.hidden && r.cover);
     const row = matches.find((r) => r.local) ?? matches[0];
-    if (row) cards.push({ kind: 'cover', src: row.cover, title: row.title });
+    if (row) cards.push({ kind: 'cover', playlistId: id, src: row.cover, title: row.title });
   }
   return cards.length ? cards : [icon];
+}
+// The player fans a two-card stack right; three cards fan left, then right.
+export function collectionStackSides(count) {
+  return count === 3 ? ['front', 'left', 'right'] : ['front', 'right'].slice(0, count);
+}
+export function collectionCoverLabels(group, rows, picture) {
+  const cards = collectionPreview(group, rows, picture).filter((card) => card.kind !== 'icon'),
+    pictureFirst = cards[0]?.kind === 'image',
+    sides = collectionStackSides(cards.length);
+  return Array.from({ length: 3 }, (_, index) => {
+    const title = ['First cover', 'Second cover', 'Third cover'][index + Number(pictureFirst)];
+    if (!title) return 'Extra cover (not shown with picture)';
+    const selected = group.covers?.[index],
+      face = selected ? cards.findIndex((card) => card.playlistId === selected) : -1;
+    if (face >= 0) return `${title} (${sides[face]})`;
+    if (selected) return `${title} (artwork unavailable)`;
+    if (cards.length === 3) return `${title} (not shown)`;
+    const side = collectionStackSides(cards.length + 1)[cards.length];
+    return `${title} (${side}${index ? ' when added' : ''})`;
+  });
 }

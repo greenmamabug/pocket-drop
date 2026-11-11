@@ -1,3 +1,10 @@
+# 4.8.1 — player-matched cover positions
+
+- Match Studio Pocket 0.7.0's stack directions: two cards are front/right; three are front/left/right. Correct both the editor and saved collection previews, and rotate rear cards about their bottom centres.
+- Update cover-position labels as covers, collection pictures or available artwork change. Explain how adding a third card moves the second card to the left.
+- Clarify that All and Recent are built-in automatic cover stacks in the current player; the supplied Studio Pocket desktop app also does not offer custom icons for those tiles. Custom collection artwork remains editable.
+- Test actual browser transforms for two- and three-card previews, selector labels, picture toggles and missing artwork. Intel Mac release only.
+
 # 4.8.0 — track icons and collection previews
 
 - Remove player firmware updating from the app: no updater controls, reset guide, recovery startup, IPC helpers, bundled flashing tools or firmware dependency. Existing backup folders, saved images and diagnostic files are left untouched. Normal audio sync and Pocket Drop app-update checks remain available.

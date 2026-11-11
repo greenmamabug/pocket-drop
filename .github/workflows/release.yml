@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing version tag to build
         required: true
-        default: v4.8.0
+        default: v4.8.1
   push:
     tags: ['v*']
 
@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.8.0' }}
+  RELEASE_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v4.8.1' }}
 
 jobs:
   test:

@@ -9,7 +9,12 @@ import { validateGroups } from '@studio-pocket/library-format';
 import { ensureDeviceMarker } from '@studio-pocket/sync-engine/node';
 import { Device } from '../app/device.mjs';
 import { Catalog } from '../app/catalog.mjs';
-import { collectionPreview, withCollectionMembers } from '../app/collection-model.mjs';
+import {
+  collectionPreview,
+  collectionCoverLabels,
+  collectionStackSides,
+  withCollectionMembers,
+} from '../app/collection-model.mjs';
 import { collectionRevision, collectionsPending } from '../app/collection-state.mjs';
 const group = {
   id: 'bedtime',
@@ -114,6 +119,40 @@ test('moving collection members drops their cover choices without mutating saved
   assert.deepEqual(changed.covers, ['one']);
   assert.deepEqual(original.covers, ['three', 'one']);
   assert.equal(validateGroups(file([changed])).groups[0].display, 'covers');
+});
+test('cover positions follow player cardinality, including a picture and missing artwork', () => {
+  assert.deepEqual(collectionStackSides(1), ['front']);
+  assert.deepEqual(collectionStackSides(2), ['front', 'right']);
+  assert.deepEqual(collectionStackSides(3), ['front', 'left', 'right']);
+  const two = { ...group, display: 'covers', covers: ['one', 'two'] };
+  assert.deepEqual(collectionCoverLabels(two, rows, null), [
+    'First cover (front)',
+    'Second cover (right)',
+    'Third cover (right when added)',
+  ]);
+  assert.deepEqual(collectionCoverLabels({ ...two, covers: ['one', 'two', 'three'] }, rows, null), [
+    'First cover (front)',
+    'Second cover (left)',
+    'Third cover (right)',
+  ]);
+  assert.deepEqual(collectionCoverLabels({ ...two, image: 'groups/picture.png' }, rows, picture), [
+    'Second cover (left)',
+    'Third cover (right)',
+    'Extra cover (not shown with picture)',
+  ]);
+  assert.deepEqual(
+    collectionCoverLabels(
+      { ...two, covers: ['one'], image: 'groups/picture.png' },
+      rows,
+      picture,
+    ).slice(0, 1),
+    ['Second cover (right)'],
+  );
+  const missing = rows.map((row) => (row.id === 'one' ? { ...row, cover: null } : row));
+  assert.deepEqual(collectionCoverLabels(two, missing, null).slice(0, 2), [
+    'First cover (artwork unavailable)',
+    'Second cover (front)',
+  ]);
 });
 test('pending detection includes appearance/image changes and preserves player-owned recent order', () => {
   const data = {
